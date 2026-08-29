@@ -1,0 +1,27 @@
+# Data directory (contains SQLite database)
+data/
+*.db
+*.sqlite3
+*.sqlite
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+.env.local
+
+# Backups and exports
+*.json
+!requirements.txt
+
+# OS metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

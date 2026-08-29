@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  habit-tracker:
+    build: .
+    container_name: habit-codex-pro
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0

@@ -1,0 +1,2261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#050508">
+<title>Habit Codex Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;width:100%;min-height:100%;overflow-x:hidden;}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#050508;color:#e2e8f0;}
+
+/* ─── CUSTOM SCROLLBAR ───────────────────────── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(139,92,246,.3);border-radius:99px;}
+
+/* ─── GLOW UTILITIES ────────────────────────── */
+.glow-purple{box-shadow:0 0 20px rgba(139,92,246,.35);}
+.glow-cyan  {box-shadow:0 0 20px rgba(6,182,212,.3);}
+.glow-green {box-shadow:0 0 20px rgba(16,185,129,.3);}
+.glow-pink  {box-shadow:0 0 20px rgba(236,72,153,.3);}
+.glow-amber {box-shadow:0 0 20px rgba(245,158,11,.3);}
+.text-glow-purple{text-shadow:0 0 20px rgba(139,92,246,.8);}
+
+/* ─── GLASSMORPHISM ─────────────────────────── */
+.glass{background:rgba(255,255,255,.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);}
+.glass-hover:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);}
+
+/* ─── ANIMATED GRADIENT BORDER ──────────────── */
+.grad-border{position:relative;background:#0a0a0f;border-radius:16px;}
+.grad-border::before{content:'';position:absolute;inset:-1px;border-radius:17px;background:linear-gradient(135deg,rgba(139,92,246,.4),rgba(6,182,212,.2),rgba(236,72,153,.2));z-index:0;pointer-events:none;}
+.grad-border > *{position:relative;z-index:1;}
+
+/* ─── ANIMATIONS ────────────────────────────── */
+@keyframes pop{0%{transform:scale(.8);opacity:.5}70%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,.5)}50%{box-shadow:0 0 0 6px rgba(139,92,246,0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+.anim-pop{animation:pop .25s cubic-bezier(.175,.885,.32,1.275);}
+.anim-fade{animation:fadeIn .3s ease forwards;}
+.anim-float{animation:float 3s ease-in-out infinite;}
+
+/* ─── HABIT CELL & TODAY COLUMN HIGHLIGHT ────── */
+.habit-cell{width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);transition:all .15s ease;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.habit-cell.done{border-color:transparent;}
+.habit-cell:hover:not(.done){border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.1);}
+.habit-cell.today-cell{box-shadow:0 0 0 1.5px rgba(139,92,246,.8), 0 0 10px rgba(139,92,246,.4);}
+.habit-cell svg{width:14px;height:14px;stroke-width:3;color:#fff;opacity:0;}
+.habit-cell.done svg{opacity:1;}
+
+/* Distinct Rectangular Column Highlight for Today's Date */
+.today-col-cell{
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%) !important;
+  border-left: 1px solid rgba(139, 92, 246, 0.35) !important;
+  border-right: 1px solid rgba(139, 92, 246, 0.35) !important;
+  position: relative;
+}
+th.today-col-cell{
+  border-top: 1px solid rgba(139, 92, 246, 0.5) !important;
+  border-top-left-radius: 10px !important;
+  border-top-right-radius: 10px !important;
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.25) 0%, rgba(99, 102, 241, 0.12) 100%) !important;
+}
+tr:last-child td.today-col-cell{
+  border-bottom: 1px solid rgba(139, 92, 246, 0.5) !important;
+  border-bottom-left-radius: 10px !important;
+  border-bottom-right-radius: 10px !important;
+}
+
+/* ─── STREAK FIRE ────────────────────────────── */
+.streak-badge{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;}
+
+/* ─── PROGRESS ARC ───────────────────────────── */
+.arc-ring{transform:rotate(-90deg);transform-origin:center;}
+
+/* ─── BOTTOM NAV ─────────────────────────────── */
+#bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(5,5,8,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.06);padding-bottom:env(safe-area-inset-bottom);}
+
+/* ─── MODAL ──────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .25s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal-box{background:#0d0d14;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:scale(.95) translateY(10px);transition:transform .25s cubic-bezier(.175,.885,.32,1.275);}
+.modal-overlay.open .modal-box{transform:scale(1) translateY(0);}
+
+/* ─── TOAST ──────────────────────────────────── */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);z-index:200;background:#0d0d14;border:1px solid rgba(255,255,255,.12);color:#fff;padding:10px 20px;border-radius:99px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:all .3s;white-space:nowrap;max-width:90vw;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ─── SCORE RING ─────────────────────────────── */
+.score-ring{filter:drop-shadow(0 0 8px rgba(139,92,246,.5));}
+
+/* ─── PAGE TABS ──────────────────────────────── */
+.page{display:none;}.page.active{display:block;animation:fadeIn .25s ease;}
+
+/* ─── XP BAR ─────────────────────────────────── */
+.xp-bar-fill{background:linear-gradient(90deg,#7c3aed,#a855f7,#c084fc);background-size:200% 100%;animation:shimmer 2s linear infinite;border-radius:99px;transition:width .5s ease;}
+
+/* ─── COLOR PICKER SWATCHES ─────────────────── */
+.swatch{width:24px;height:24px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s;}
+.swatch.active,.swatch:hover{border-color:#fff;transform:scale(1.1);}
+
+/* ─── MOBILE SPECIFIC ────────────────────────── */
+@media(max-width:640px){
+  .habit-cell{width:24px;height:24px;border-radius:6px;}
+  .habit-cell svg{width:11px;height:11px;}
+}
+
+/* ─── HEATMAP CELL ───────────────────────────── */
+.hmap-cell{width:12px;height:12px;border-radius:3px;background:rgba(255,255,255,.05);transition:background .2s;}
+
+/* ─── TOGGLE SWITCH ─────────────────────────── */
+.toggle-switch{position:relative;display:inline-block;width:40px;height:22px;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:11px;transition:.3s;cursor:pointer;}
+.toggle-slider::before{content:'';position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;}
+.toggle-switch input:checked+.toggle-slider{background:#7c3aed;}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(18px);}
+
+/* ─── QUOTE CARD ─────────────────────────────── */
+.quote-card{background:linear-gradient(135deg,rgba(124,58,237,.1),rgba(6,182,212,.05));border:1px solid rgba(139,92,246,.2);border-radius:14px;padding:16px;}
+
+/* ─── DRAG & DROP / REORDER SLIDER ───────────── */
+tr.habit-row-drag {
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+tr.habit-row-drag.dragging {
+  opacity: 0.45;
+  background: rgba(124, 58, 237, 0.15) !important;
+}
+tr.habit-row-drag.drag-over {
+  border-top: 2px solid #a855f7 !important;
+}
+.drag-handle {
+  cursor: grab;
+  color: #64748b;
+  user-select: none;
+  touch-action: none;
+  transition: color 0.15s, transform 0.15s;
+}
+.drag-handle:hover {
+  color: #c4b5fd;
+  transform: scale(1.15);
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ─── STICKY NOTES ────────────────────────────── */
+.sticky-note-card {
+  border-radius: 16px;
+  padding: 16px;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 190px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.sticky-note-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+.sticky-tape {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 16px;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(4px);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.note-swatch {
+  border: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+.note-swatch.active, .note-swatch:hover {
+  border-color: #fff;
+  transform: scale(1.15);
+}
+
+/* ─── 2-SECOND INTERACTIVE FEATURE GUIDE TOOLTIP ──── */
+#feature-guide-popover {
+  position: fixed;
+  z-index: 300;
+  max-width: 320px;
+  background: #0f111a;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 25px rgba(124, 58, 237, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px) scale(0.95);
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+#feature-guide-popover.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+[data-guide] {
+  cursor: help;
+}
+
+/* ─── FREQUENCY TAG ──────────────────────────── */
+.freq-tag{padding:3px 8px;border-radius:99px;font-size:11px;font-weight:600;}
+
+/* ─── CATEGORY PILL ──────────────────────────── */
+.cat-pill{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:99px;}
+</style>
+</head>
+<body>
+
+<!-- FLOATING 2-SECOND GUIDE POPOVER -->
+<div id="feature-guide-popover">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <span id="guide-icon" style="font-size:18px;">💡</span>
+    <h4 id="guide-title" style="font-size:13px;font-weight:800;color:#fff;margin:0;">Feature Guide</h4>
+  </div>
+  <p id="guide-desc" style="font-size:12px;color:#cbd5e1;line-height:1.5;margin:0 0 8px 0;"></p>
+  <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;margin-top:4px;">
+    <span id="guide-tip" style="font-size:10px;color:#a78bfa;font-weight:600;">✨ Pro Tip</span>
+    <span style="font-size:9px;color:#6b7280;">2s hover guide</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════ -->
+<header style="background:rgba(5,5,8,.95);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);" class="sticky top-0 z-40">
+  <div class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
+    <!-- Logo -->
+    <div class="flex items-center gap-2.5 shrink-0">
+      <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:10px;" class="w-8 h-8 flex items-center justify-center glow-purple">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="hidden sm:block">
+        <h1 class="text-sm font-bold text-white leading-none">Habit Codex</h1>
+        <p class="text-[10px]" style="color:#6b7280;">PRO — Level up daily</p>
+      </div>
+    </div>
+
+    <!-- Month Navigator (center) -->
+    <div class="flex items-center gap-1 glass rounded-xl px-3 py-1.5">
+      <button id="prev-month" class="p-1 rounded-lg transition hover:bg-white/10" style="color:#9ca3af;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span id="month-label" class="text-xs font-semibold text-white px-1 min-w-[100px] text-center"></span>
+      <button id="next-month" class="p-1 rounded-lg transition hover:bg-white/10" style="color:#9ca3af;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Right actions -->
+    <div class="flex items-center gap-2">
+      <!-- User Profile & Cloud Sync Badge -->
+      <div id="user-badge-container" class="flex items-center gap-1.5 glass rounded-xl px-2.5 py-1 text-xs">
+        <span id="sync-indicator" title="Cloud Database Connection Status" class="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+          <span id="sync-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="hidden md:inline" id="sync-text">Cloud</span>
+        </span>
+        <span style="color:rgba(255,255,255,0.15);">|</span>
+        <button id="btn-user-profile" onclick="openAuthModal()" class="flex items-center gap-1 font-bold text-slate-200 hover:text-white transition">
+          <span id="header-username">👤 Login</span>
+        </button>
+        <button id="btn-logout" onclick="logoutUser()" title="Logout" class="hidden text-slate-400 hover:text-red-400 p-0.5 rounded transition">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+
+      <!-- Score Badge in Header -->
+      <div id="score-badge" class="hidden sm:flex items-center gap-1.5 glass rounded-xl px-3 py-1.5 cursor-pointer" onclick="showPage('stats')">
+        <span style="color:#a78bfa;font-size:11px;">🏆</span>
+        <span id="header-score" class="text-xs font-bold" style="color:#a78bfa;">0.0 Score</span>
+      </div>
+
+      <!-- Export / Import -->
+      <button id="btn-export" title="Export Backup" class="glass glass-hover w-8 h-8 rounded-xl flex items-center justify-center transition" style="color:#9ca3af;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button id="btn-import" title="Import Backup" class="glass glass-hover w-8 h-8 rounded-xl flex items-center justify-center transition" style="color:#9ca3af;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      <input type="file" id="import-file" accept=".json" class="hidden">
+
+      <!-- Add Habit -->
+      <button id="btn-add-habit" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:10px;" class="glow-purple h-8 px-3 flex items-center gap-1.5 text-white text-xs font-semibold transition hover:opacity-90">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="hidden sm:inline">Add Habit</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════
+     MAIN CONTENT AREA (EXPANDED FOR FULL DESKTOP SCREEN)
+══════════════════════════════════════════════════ -->
+<div class="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 pb-24" style="min-height:calc(100vh - 56px);">
+
+  <!-- ═══ PAGE: DASHBOARD ═══ -->
+  <div id="page-dashboard" class="page active">
+
+    <!-- DESKTOP TOP HERO ROW: 4 MAIN STATS (8 COLS) + DAILY SPARK (4 COLS) -->
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 py-4 items-stretch">
+      
+      <!-- 4 MAIN STATS CARDS (8 COLS ON XL) -->
+      <div class="xl:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <!-- Today Progress -->
+        <div class="grad-border p-3.5 flex flex-col justify-between" data-guide data-title="Today's Completion Rate" data-desc="Real-time percentage of habits completed today out of your total active habits." data-tip="Check habits off to see this bar fill up and unlock streak confetti!" data-icon="🎯">
+          <div class="flex items-center justify-between">
+            <span style="color:#6b7280;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Today</span>
+            <span style="font-size:16px;" class="anim-float">🎯</span>
+          </div>
+          <div class="my-1.5 flex items-baseline gap-1.5">
+            <span id="stat-pct" class="text-2xl font-black text-white">0%</span>
+            <span id="stat-ratio" style="color:#6b7280;font-size:11px;">0/0</span>
+          </div>
+          <div style="background:rgba(255,255,255,.06);border-radius:99px;height:4px;overflow:hidden;">
+            <div id="today-bar" style="background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:99px;height:4px;width:0%;transition:width .5s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Best Streak -->
+        <div class="grad-border p-3.5 flex flex-col justify-between" data-guide data-title="Active Streak Counter" data-desc="Calculates your highest consecutive unbroken chain of daily habit completions." data-tip="Missing a day resets your active streak unless Streak Freeze is on." data-icon="🔥">
+          <div class="flex items-center justify-between">
+            <span style="color:#6b7280;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Top Streak</span>
+            <span style="font-size:16px;" class="anim-float" style="animation-delay:.5s">🔥</span>
+          </div>
+          <div class="my-1.5 flex items-baseline gap-1.5">
+            <span id="stat-streak" class="text-2xl font-black" style="color:#f59e0b;">0</span>
+            <span style="color:#6b7280;font-size:11px;">days</span>
+          </div>
+          <p style="color:#4b5563;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Unbroken chain</p>
+        </div>
+
+        <!-- Month Rate -->
+        <div class="grad-border p-3.5 flex flex-col justify-between" data-guide data-title="Monthly Consistency Rate" data-desc="Overall completion percentage across all days in the currently viewed month." data-tip="Navigate between months using the top header arrows." data-icon="📈">
+          <div class="flex items-center justify-between">
+            <span style="color:#6b7280;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Month</span>
+            <span style="font-size:16px;" class="anim-float" style="animation-delay:1s">📈</span>
+          </div>
+          <div class="my-1.5 flex items-baseline gap-1.5">
+            <span id="stat-month" class="text-2xl font-black" style="color:#10b981;">0%</span>
+            <span style="color:#6b7280;font-size:11px;">rate</span>
+          </div>
+          <p style="color:#4b5563;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="stat-total-checks">0 checks</p>
+        </div>
+
+        <!-- Total Score Card (Proportional Scoring: e.g. 5/5 = 1.0 pt/day, 4/5 = 0.8 pt/day) -->
+        <div class="grad-border p-3.5 flex flex-col justify-between cursor-pointer" onclick="showPage('stats')" data-guide data-title="Daily & Total Habit Score" data-desc="Earn 1.0 point per day when completing all habits. Completing 4 out of 5 habits earns 0.8 points. Your overall score is accumulated daily!" data-tip="Click here to view your stats and score breakdown." data-icon="🏆">
+          <div class="flex items-center justify-between">
+            <span style="color:#6b7280;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">Habit Score</span>
+            <span style="font-size:16px;" class="anim-float" style="animation-delay:1.5s">🏆</span>
+          </div>
+          <div class="my-1.5 flex items-baseline gap-1.5">
+            <span id="stat-score-total" class="text-2xl font-black" style="color:#a78bfa;">0.0</span>
+            <span id="stat-score-today" style="color:#10b981;font-size:11px;font-weight:700;">+0.0 today</span>
+          </div>
+          <div style="background:rgba(255,255,255,.06);border-radius:99px;height:4px;overflow:hidden;">
+            <div id="score-bar" style="background:linear-gradient(90deg,#7c3aed,#a855f7,#06b6d4);border-radius:99px;height:4px;width:0%;transition:width .5s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT WING: DAILY SPARK / QUOTE (4 COLS ON XL) -->
+      <div class="xl:col-span-4 quote-card flex flex-col justify-between" data-guide data-title="Daily Mindset Spark" data-desc="Curated wisdom on habit formation, discipline, and success psychology." data-tip="Click 'New quote →' whenever you need an extra boost of motivation." data-icon="💡">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <p style="font-size:11px;font-weight:700;color:#a78bfa;letter-spacing:.04em;text-transform:uppercase;">✦ Daily Spark</p>
+            <button id="btn-new-quote" style="color:#7c3aed;font-size:11px;font-weight:700;" class="hover:text-purple-300 transition">Next →</button>
+          </div>
+          <p id="quote-text" style="color:#c4b5fd;font-size:12px;line-height:1.5;font-style:italic;" class="line-clamp-3"></p>
+        </div>
+        <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-purple-500/10">
+          <span id="quote-author" style="color:#64748b;font-size:10px;font-weight:600;"></span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- HABIT MATRIX (EXPANDED TO FULL WIDTH FOR PROMINENT DATA DISPLAY) -->
+    <div class="glass rounded-2xl overflow-hidden mb-4 shadow-2xl" data-guide data-title="Interactive Monthly Habit Matrix" data-desc="Check off daily habits, see active streaks (🔥), and edit (✏️) or delete (🗑) habits on the sticky left column." data-tip="Click the '⚡ Today' button anytime to quickly jump and center today's date." data-icon="🗓">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-wrap gap-2">
+        <div class="flex items-center gap-2">
+          <span style="font-size:14px;">🗓</span>
+          <span class="text-sm font-bold text-white">Monthly Grid</span>
+          <span id="habit-count-badge" style="background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.2);font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">0</span>
+          
+          <!-- Quick jump to today button -->
+          <button id="btn-jump-today" onclick="jumpToToday()" style="background:rgba(124,58,237,.15);border:1px solid rgba(139,92,246,.4);color:#c4b5fd;font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;cursor:pointer;" class="hover:bg-purple-500/25 transition ml-1 flex items-center gap-1">
+            <span>⚡ Today</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-3 text-xs" style="color:#4b5563;">
+          <span class="flex items-center gap-1.5"><span style="width:10px;height:10px;border-radius:2px;background:linear-gradient(180deg,rgba(124,58,237,.6),rgba(99,102,241,.4));border:1px solid rgba(139,92,246,.8);display:inline-block;"></span> Today's Column</span>
+          <span class="flex items-center gap-1"><span style="width:10px;height:10px;border-radius:3px;background:#7c3aed;display:inline-block;"></span> Done</span>
+          <span class="flex items-center gap-1"><span style="width:10px;height:10px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:inline-block;"></span> Miss</span>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <div id="matrix-wrap" class="p-3" style="min-width:max-content;"></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM GRID: Tasks + Quick chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-4">
+
+      <!-- Tasks (7/12 on LG for widescreen prominence) -->
+      <div class="lg:col-span-7 glass rounded-2xl p-4 flex flex-col" data-guide data-title="Weekly High-Priority Tasks" data-desc="Manage non-routine tasks with Priority tags (🔥 High, ⚡ Med, 🌿 Low). Earn +3 XP for each task checked." data-tip="Use 'Clear done' to clean up completed items without losing history." data-icon="✅">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span style="font-size:14px;">✅</span>
+            <span class="text-sm font-bold text-white">Weekly Focus & Priority Tasks</span>
+            <span id="tasks-badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2);font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">0/0</span>
+          </div>
+          <button id="btn-clear-completed" style="color:#4b5563;font-size:11px;font-weight:600;" class="hover:text-red-400 transition hidden">Clear done</button>
+        </div>
+
+        <form id="task-form" class="flex gap-2 mb-3">
+          <input type="text" id="task-input" placeholder="Add a task or goal…" maxlength="80" required style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#e2e8f0;font-size:13px;padding:9px 14px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+          <select id="task-priority" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#9ca3af;font-size:12px;padding:0 10px;outline:none;cursor:pointer;">
+            <option value="high">🔥 High</option>
+            <option value="medium" selected>⚡ Med</option>
+            <option value="low">🌿 Low</option>
+          </select>
+          <button type="submit" style="background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.3);color:#a78bfa;font-size:12px;font-weight:600;border-radius:10px;padding:0 14px;white-space:nowrap;cursor:pointer;" class="hover:bg-purple-500/30 transition">+ Add</button>
+        </form>
+
+        <div id="tasks-list" class="space-y-2 overflow-y-auto" style="max-height:220px;flex:1;"></div>
+      </div>
+
+      <!-- 7-day trend chart (5/12 on LG) -->
+      <div class="lg:col-span-5 glass rounded-2xl p-4 flex flex-col" data-guide data-title="7-Day Productivity & Mood Correlation" data-desc="Visualizes your 7-day trend comparing habit completion rates (solid purple line) against daily mood (dotted pink line)." data-tip="Spot how high consistency days correlate with elevated mood!" data-icon="📊">
+        <div class="flex items-center gap-2 mb-3">
+          <span style="font-size:14px;">📊</span>
+          <span class="text-sm font-bold text-white">7-Day Trend</span>
+        </div>
+        <div style="flex:1;position:relative;min-height:180px;">
+          <canvas id="trend-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-dashboard -->
+
+  <!-- ═══ PAGE: STATS ═══ -->
+  <div id="page-stats" class="page">
+    <div class="py-4 space-y-4">
+
+      <!-- Total Habit Score Hero Card -->
+      <div class="grad-border p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p style="color:#6b7280;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">Lifetime Consistency Score</p>
+            <h2 id="stats-score-rank" class="text-2xl font-black text-white">0.0 Points</h2>
+          </div>
+          <div style="width:72px;height:72px;position:relative;">
+            <svg width="72" height="72" viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="6"/>
+              <circle id="stats-score-ring" cx="36" cy="36" r="30" fill="none" stroke="url(#scoreGrad)" stroke-width="6" stroke-linecap="round" stroke-dasharray="188.4" stroke-dashoffset="188.4" class="arc-ring"/>
+              <defs><linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs>
+            </svg>
+            <span id="stats-score-badge-text" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#a78bfa;">0.0</span>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.05);border-radius:99px;height:6px;overflow:hidden;margin-bottom:8px;">
+          <div id="stats-score-bar" style="background:linear-gradient(90deg,#7c3aed,#a855f7,#06b6d4);height:6px;width:0%;transition:width .5s ease;border-radius:99px;"></div>
+        </div>
+        <div class="flex justify-between" style="font-size:11px;color:#6b7280;">
+          <span id="stats-score-today-text">Today: +0.0 pts</span>
+          <span id="stats-score-status">1.0 pt / perfect day</span>
+        </div>
+      </div>
+
+      <!-- All-time summary -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="glass rounded-2xl p-4 text-center">
+          <div id="as-total-days" class="text-3xl font-black text-white">0</div>
+          <div style="color:#6b7280;font-size:11px;margin-top:4px;">Total Days Logged</div>
+        </div>
+        <div class="glass rounded-2xl p-4 text-center">
+          <div id="as-total-checks" class="text-3xl font-black" style="color:#a78bfa;">0</div>
+          <div style="color:#6b7280;font-size:11px;margin-top:4px;">Total Completions</div>
+        </div>
+        <div class="glass rounded-2xl p-4 text-center">
+          <div id="as-best-streak" class="text-3xl font-black" style="color:#f59e0b;">0🔥</div>
+          <div style="color:#6b7280;font-size:11px;margin-top:4px;">All-time Best Streak</div>
+        </div>
+      </div>
+
+      <!-- Habit-by-habit stats -->
+      <div class="glass rounded-2xl p-4">
+        <p class="text-sm font-bold text-white mb-3">Habit Breakdown</p>
+        <div id="habit-stats-list" class="space-y-3"></div>
+      </div>
+
+      <!-- Yearly Heatmap -->
+      <div class="glass rounded-2xl p-4 overflow-x-auto">
+        <p class="text-sm font-bold text-white mb-3">Activity Heatmap</p>
+        <div id="heatmap-container" style="min-width:max-content;"></div>
+        <div class="flex items-center gap-2 mt-3" style="font-size:11px;color:#4b5563;">
+          <span>Less</span>
+          <span class="hmap-cell" style="width:12px;height:12px;border-radius:3px;background:rgba(255,255,255,.05);display:inline-block;"></span>
+          <span class="hmap-cell" style="width:12px;height:12px;border-radius:3px;background:rgba(139,92,246,.2);display:inline-block;"></span>
+          <span class="hmap-cell" style="width:12px;height:12px;border-radius:3px;background:rgba(139,92,246,.5);display:inline-block;"></span>
+          <span class="hmap-cell" style="width:12px;height:12px;border-radius:3px;background:rgba(139,92,246,.8);display:inline-block;"></span>
+          <span class="hmap-cell" style="width:12px;height:12px;border-radius:3px;background:#7c3aed;display:inline-block;"></span>
+          <span>More</span>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /page-stats -->
+
+  <!-- ═══ PAGE: NOTES (STICKY NOTES) ═══ -->
+  <div id="page-notes" class="page">
+    <div class="py-4 space-y-4">
+      
+      <!-- Notes Header & Controls -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/5">
+        <div>
+          <div class="flex items-center gap-2">
+            <span style="font-size: 20px;">📌</span>
+            <h2 class="text-xl font-black text-white">Sticky Notes</h2>
+            <span id="notes-count-badge" style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;">0 notes</span>
+          </div>
+          <p style="color:#64748b;font-size:12px;margin-top:2px;">Quick thoughts, reminders, goals, and daily ideas</p>
+        </div>
+
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <!-- Search input -->
+          <div class="relative flex-1 sm:w-64">
+            <input type="text" id="notes-search-input" placeholder="Search notes..." oninput="renderNotes()" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#e2e8f0;font-size:12px;padding:8px 12px 8px 30px;outline:none;" onfocus="this.style.borderColor='rgba(245,158,11,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+            <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#64748b;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+
+          <!-- + New Note Button -->
+          <button onclick="openNoteModal()" style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:10px;color:#fff;font-size:12px;font-weight:700;padding:8px 16px;border:none;cursor:pointer;white-space:nowrap;box-shadow:0 0 12px rgba(245,158,11,0.35);" class="hover:opacity-90 transition flex items-center gap-1.5 shrink-0">
+            <span>+ New Note</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Notes Grid -->
+      <div id="notes-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pt-2"></div>
+    </div>
+  </div><!-- /page-notes -->
+
+  <!-- ═══ PAGE: SETTINGS ═══ -->
+  <div id="page-settings" class="page">
+    <div class="py-4 space-y-3">
+      <h2 class="text-lg font-black text-white mb-4">Settings</h2>
+
+      <div class="glass rounded-2xl divide-y" style="divide-color:rgba(255,255,255,.05);">
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div>
+            <p class="text-sm font-semibold text-white">Streak Freeze</p>
+            <p style="color:#6b7280;font-size:12px;">Protect streak on rest days</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="setting-freeze" onchange="saveSetting('freeze',this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div>
+            <p class="text-sm font-semibold text-white">Confetti Celebrations</p>
+            <p style="color:#6b7280;font-size:12px;">Animate on habit completion</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="setting-confetti" checked onchange="saveSetting('confetti',this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div>
+            <p class="text-sm font-semibold text-white">Show XP & Levels</p>
+            <p style="color:#6b7280;font-size:12px;">Gamification system</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="setting-xp" checked onchange="saveSetting('xp',this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div>
+            <p class="text-sm font-semibold text-white">Sound Effects</p>
+            <p style="color:#6b7280;font-size:12px;">Audio feedback on actions</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="setting-sound" onchange="saveSetting('sound',this.checked)"><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+
+      <!-- Danger Zone -->
+      <div class="glass rounded-2xl p-4">
+        <p style="color:#ef4444;font-size:12px;font-weight:700;margin-bottom:12px;">⚠ Danger Zone</p>
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="exportData()" style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);color:#10b981;font-size:12px;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;" class="hover:bg-emerald-500/20 transition">📥 Export Backup</button>
+          <button id="settings-import-btn" style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);color:#06b6d4;font-size:12px;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;" class="hover:bg-cyan-500/20 transition">📤 Import Backup</button>
+          <button onclick="clearAllData()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#ef4444;font-size:12px;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;" class="hover:bg-red-500/20 transition">🗑 Reset All Data</button>
+        </div>
+      </div>
+
+      <!-- App info -->
+      <div class="glass rounded-2xl p-4 text-center" style="color:#374151;">
+        <p style="font-size:12px;">Habit Codex Pro — v2.0</p>
+        <p style="font-size:11px;margin-top:4px;">All data stored locally on your device</p>
+      </div>
+    </div>
+  </div><!-- /page-settings -->
+
+</div><!-- /main content -->
+
+<!-- ══════════════════════════════════════════════════
+     BOTTOM NAVIGATION
+══════════════════════════════════════════════════ -->
+<nav id="bottom-nav" class="flex items-center justify-around py-2 px-4">
+  <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Today</span>
+  </button>
+  <button class="nav-btn" data-page="stats" onclick="showPage('stats')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    <span>Stats</span>
+  </button>
+  <button class="nav-btn" data-page="notes" onclick="showPage('notes')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3z"/><path d="M15 3v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+    <span>Notes</span>
+  </button>
+  <button class="nav-btn" data-page="settings" onclick="showPage('settings')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>Settings</span>
+  </button>
+</nav>
+
+<!-- ══════════════════════════════════════════════════
+     STICKY NOTE MODAL
+══════════════════════════════════════════════════ -->
+<div id="note-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid rgba(255,255,255,.06);">
+      <h3 id="note-modal-title" class="text-base font-bold text-white">New Sticky Note</h3>
+      <button onclick="closeModal('note-modal')" style="color:#6b7280;" class="hover:text-white transition p-1 rounded-lg hover:bg-white/10">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="note-form" onsubmit="saveNote(event)" class="p-5 space-y-4">
+      <input type="hidden" id="edit-note-id">
+
+      <!-- Note Title -->
+      <div>
+        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Title</label>
+        <input type="text" id="note-title-input" placeholder="e.g. Weekly Goal, Idea, Reminder…" maxlength="60" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:10px 14px;outline:none;" onfocus="this.style.borderColor='rgba(245,158,11,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+      </div>
+
+      <!-- Note Content -->
+      <div>
+        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Note Content *</label>
+        <textarea id="note-content-input" placeholder="Write your thought, checklist, or reminder here…" required rows="5" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:13px;padding:10px 14px;outline:none;resize:none;font-family:inherit;line-height:1.5;" onfocus="this.style.borderColor='rgba(245,158,11,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'"></textarea>
+      </div>
+
+      <!-- Color Theme & Pin Option -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        <div>
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Sticky Color</label>
+          <div class="flex gap-2">
+            <div class="note-swatch active" data-color="yellow" style="width:22px;height:22px;border-radius:6px;background:#f59e0b;cursor:pointer;" onclick="selectNoteColor('yellow', this)"></div>
+            <div class="note-swatch" data-color="green" style="width:22px;height:22px;border-radius:6px;background:#10b981;cursor:pointer;" onclick="selectNoteColor('green', this)"></div>
+            <div class="note-swatch" data-color="purple" style="width:22px;height:22px;border-radius:6px;background:#a855f7;cursor:pointer;" onclick="selectNoteColor('purple', this)"></div>
+            <div class="note-swatch" data-color="cyan" style="width:22px;height:22px;border-radius:6px;background:#06b6d4;cursor:pointer;" onclick="selectNoteColor('cyan', this)"></div>
+            <div class="note-swatch" data-color="pink" style="width:22px;height:22px;border-radius:6px;background:#ec4899;cursor:pointer;" onclick="selectNoteColor('pink', this)"></div>
+            <div class="note-swatch" data-color="slate" style="width:22px;height:22px;border-radius:6px;background:#64748b;cursor:pointer;" onclick="selectNoteColor('slate', this)"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 select-none">
+            <input type="checkbox" id="note-pinned-input" style="accent-color:#f59e0b;width:15px;height:15px;cursor:pointer;">
+            <span>Pin to Top 📌</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center justify-between pt-3 border-t border-white/5">
+        <button type="button" id="btn-delete-note" class="hidden" onclick="deleteCurrentNote()" style="color:#ef4444;font-size:12px;font-weight:600;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,.1);border:none;cursor:pointer;">🗑 Delete</button>
+        <div class="flex gap-2 ml-auto">
+          <button type="button" onclick="closeModal('note-modal')" style="color:#6b7280;font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer;">Cancel</button>
+          <button type="submit" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:white;font-size:13px;font-weight:700;padding:9px 20px;border-radius:10px;border:none;cursor:pointer;box-shadow:0 0 10px rgba(245,158,11,0.3);" class="hover:opacity-90 transition">Save Note</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     AUTHENTICATION & USER ENROLLMENT MODAL
+══════════════════════════════════════════════════ -->
+<div id="auth-modal" class="modal-overlay">
+  <div class="modal-box max-w-md">
+    <div class="p-6 text-center border-b border-white/5 relative">
+      <div style="width:48px;height:48px;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:14px;margin:0 auto 12px;" class="flex items-center justify-center glow-purple">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <h3 class="text-lg font-black text-white" id="auth-heading">Habit Codex Pro</h3>
+      <p class="text-xs text-slate-400 mt-1" id="auth-subheading">Multi-User Cloud & Self-Hosted Database</p>
+      
+      <!-- Optional close button if already logged in -->
+      <button id="auth-close-btn" onclick="closeModal('auth-modal')" style="position:absolute;right:16px;top:16px;color:#6b7280;" class="hidden hover:text-white transition p-1 rounded-lg hover:bg-white/10">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Auth Tabs: Login vs Enroll -->
+    <div class="flex border-b border-white/5 bg-white/[0.02]">
+      <button type="button" id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition">
+        Log In
+      </button>
+      <button type="button" id="tab-register" onclick="switchAuthTab('register')" class="flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition">
+        Enroll New User
+      </button>
+    </div>
+
+    <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="p-6 space-y-4">
+      <!-- Username -->
+      <div>
+        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Username</label>
+        <div class="relative">
+          <input type="text" id="auth-username" placeholder="e.g. sumit, alex…" required minlength="2" maxlength="30" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">👤</span>
+        </div>
+      </div>
+
+      <!-- Phone Number -->
+      <div>
+        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Phone Number</label>
+        <div class="relative">
+          <input type="tel" id="auth-phone" placeholder="e.g. 9876543210…" required minlength="4" maxlength="20" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">📱</span>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1.5" id="auth-tip">Enter username & phone number to access your isolated profile.</p>
+      </div>
+
+      <!-- Error message container -->
+      <div id="auth-error" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center font-medium"></div>
+
+      <!-- Submit button -->
+      <button type="submit" id="auth-submit-btn" style="width:100%;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:12px;padding:12px;color:white;font-size:13px;font-weight:700;border:none;cursor:pointer;" class="glow-purple hover:opacity-90 transition">
+        Log In to Dashboard 🚀
+      </button>
+
+      <!-- Offline / Local Mode bypass -->
+      <div class="text-center pt-2 border-t border-white/5">
+        <button type="button" onclick="useOfflineGuestMode()" class="text-[11px] text-slate-500 hover:text-slate-300 transition underline">
+          Continue in Offline Local Mode
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     HABIT MODAL
+══════════════════════════════════════════════════ -->
+<div id="habit-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid rgba(255,255,255,.06);">
+      <h3 id="modal-title" class="text-base font-bold text-white">New Habit</h3>
+      <button onclick="closeModal('habit-modal')" style="color:#6b7280;" class="hover:text-white transition p-1 rounded-lg hover:bg-white/10">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="habit-form" class="p-5 space-y-4">
+      <input type="hidden" id="edit-habit-id">
+
+      <!-- Name -->
+      <div>
+        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Habit Name *</label>
+        <input type="text" id="habit-name" placeholder="e.g. Meditate 10 min, Read 20 pages…" maxlength="60" required style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+      </div>
+
+      <!-- Category & Frequency -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Category</label>
+          <select id="habit-category" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:13px;padding:11px 12px;outline:none;cursor:pointer;">
+            <option value="health">💪 Health</option>
+            <option value="mind">🧠 Mind</option>
+            <option value="work">⚡ Work</option>
+            <option value="selfcare">✨ Self Care</option>
+            <option value="finance">💰 Finance</option>
+            <option value="social">🤝 Social</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Frequency</label>
+          <select id="habit-frequency" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:13px;padding:11px 12px;outline:none;cursor:pointer;">
+            <option value="daily">📅 Daily</option>
+            <option value="weekdays">🗓 Weekdays</option>
+            <option value="weekends">🏖 Weekends</option>
+            <option value="3x">3× Week</option>
+            <option value="2x">2× Week</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Color & Target -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Color</label>
+          <div class="flex flex-wrap gap-2">
+            <div class="swatch active" data-color="#7c3aed" style="background:#7c3aed;" onclick="selectColor(this)"></div>
+            <div class="swatch" data-color="#06b6d4" style="background:#06b6d4;" onclick="selectColor(this)"></div>
+            <div class="swatch" data-color="#10b981" style="background:#10b981;" onclick="selectColor(this)"></div>
+            <div class="swatch" data-color="#f59e0b" style="background:#f59e0b;" onclick="selectColor(this)"></div>
+            <div class="swatch" data-color="#ec4899" style="background:#ec4899;" onclick="selectColor(this)"></div>
+            <div class="swatch" data-color="#ef4444" style="background:#ef4444;" onclick="selectColor(this)"></div>
+            <input type="color" id="habit-color" value="#7c3aed" style="width:24px;height:24px;border-radius:6px;border:2px solid rgba(255,255,255,.2);cursor:pointer;background:transparent;" title="Custom color">
+          </div>
+        </div>
+        <div>
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Daily Target</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="habit-target" min="1" max="50" value="1" style="width:60px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 12px;outline:none;text-align:center;">
+            <select id="habit-unit" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#9ca3af;font-size:12px;padding:11px 10px;outline:none;cursor:pointer;">
+              <option>times</option>
+              <option>minutes</option>
+              <option>hours</option>
+              <option>pages</option>
+              <option>km</option>
+              <option>glasses</option>
+              <option>reps</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cue / Time Trigger -->
+      <div>
+        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Trigger / Cue <span style="color:#4b5563;font-weight:400;">(optional)</span></label>
+        <input type="text" id="habit-cue" placeholder="After morning coffee at 7 AM…" maxlength="80" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:13px;padding:11px 14px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex items-center justify-between pt-2">
+        <button type="button" id="btn-delete-habit" class="hidden" style="color:#ef4444;font-size:12px;font-weight:600;padding:8px;border-radius:8px;background:rgba(239,68,68,.1);border:none;cursor:pointer;" class="hover:bg-red-500/20">🗑 Delete</button>
+        <div class="flex gap-2 ml-auto">
+          <button type="button" onclick="closeModal('habit-modal')" style="color:#6b7280;font-size:13px;font-weight:600;padding:10px 18px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer;">Cancel</button>
+          <button type="submit" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;font-size:13px;font-weight:700;padding:10px 22px;border-radius:11px;border:none;cursor:pointer;" class="glow-purple hover:opacity-90 transition">Save Habit</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">✓ <span id="toast-msg"></span></div>
+
+<style>
+/* Bottom nav styles */
+.nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 18px;border-radius:12px;border:none;background:transparent;color:#4b5563;font-size:10px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.02em;}
+.nav-btn:hover,.nav-btn.active{color:#a78bfa;}
+.nav-btn.active svg{stroke:#7c3aed;filter:drop-shadow(0 0 6px rgba(124,58,237,.6));}
+.nav-btn svg{transition:all .2s;}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE & CONSTANTS
+// ═══════════════════════════════════════════════════════
+const KEY = 'HC_PRO_V2';
+let S = {
+  habits:[],tasks:[],notes:[],
+  viewYear:new Date().getFullYear(),
+  viewMonth:new Date().getMonth(),
+  settings:{freeze:false,confetti:true,xp:true,sound:false},
+  xp:0,bestStreak:0,
+};
+
+const LEVEL_THRESHOLDS=[0,100,250,500,1000,2000,3500,5500,8000,12000,20000];
+const LEVEL_NAMES=['Beginner','Consistent','Builder','Achiever','Warrior','Champion','Legend','Master','Grandmaster','Titan','Godmode'];
+const QUOTES=[
+  {t:"We are what we repeatedly do. Excellence is not an act but a habit.",a:"Will Durant"},
+  {t:"You do not rise to the level of your goals. You fall to the level of your systems.",a:"James Clear"},
+  {t:"Small daily improvements over time lead to stunning results.",a:"Robin Sharma"},
+  {t:"Motivation gets you started. Habit keeps you going.",a:"Jim Ryun"},
+  {t:"Consistency is the DNA of mastery.",a:"Robin Sharma"},
+  {t:"The secret of your future is hidden in your daily routine.",a:"Mike Murdock"},
+  {t:"First forget inspiration. Habit is more dependable.",a:"Octavia Butler"},
+  {t:"Good habits, once established, are just as hard to break as bad ones.",a:"Robert Puller"},
+  {t:"Each morning we are born again. What we do today matters most.",a:"Buddha"},
+  {t:"Success is the sum of small efforts, repeated day in and day out.",a:"Robert Collier"},
+];
+
+const CAT_META={
+  health:{label:'Health',emoji:'💪',col:'#10b981'},
+  mind:{label:'Mind',emoji:'🧠',col:'#a78bfa'},
+  work:{label:'Work',emoji:'⚡',col:'#f59e0b'},
+  selfcare:{label:'Self Care',emoji:'✨',col:'#ec4899'},
+  finance:{label:'Finance',emoji:'💰',col:'#34d399'},
+  social:{label:'Social',emoji:'🤝',col:'#06b6d4'},
+};
+
+let trendChart=null, moodChart=null, selectedColor='#7c3aed';
+
+// ═══════════════════════════════════════════════════════
+// MULTI-USER AUTH & CLOUD SYNC ENGINE
+// ═══════════════════════════════════════════════════════
+const AUTH_TOKEN_KEY = 'HC_AUTH_TOKEN';
+const AUTH_USER_KEY = 'HC_AUTH_USER';
+let currentUser = null;
+let currentAuthMode = 'login';
+let syncTimer = null;
+let isOfflineMode = false;
+
+function getApiBase(){
+  if(window.location.protocol.startsWith('http')){
+    return window.location.origin;
+  }
+  return 'http://localhost:8000';
+}
+
+function getStorageKey(){
+  return currentUser ? `${KEY}_${currentUser.id}` : `${KEY}_local`;
+}
+
+function updateSyncStatus(status, text){
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  if(!dot || !txt) return;
+
+  if(status === 'synced'){
+    dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+    txt.textContent = text || 'Cloud';
+    txt.className = 'hidden md:inline text-emerald-400 font-semibold';
+  } else if(status === 'syncing'){
+    dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+    txt.textContent = text || 'Syncing...';
+    txt.className = 'hidden md:inline text-amber-400 font-semibold';
+  } else if(status === 'offline'){
+    dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+    txt.textContent = text || 'Offline';
+    txt.className = 'hidden md:inline text-slate-400 font-semibold';
+  } else if(status === 'error'){
+    dot.className = 'w-2 h-2 rounded-full bg-red-400';
+    txt.textContent = text || 'Sync Error';
+    txt.className = 'hidden md:inline text-red-400 font-semibold';
+  }
+}
+
+function updateHeaderUserUI(){
+  const usernameEl = document.getElementById('header-username');
+  const logoutBtn = document.getElementById('btn-logout');
+  const closeBtn = document.getElementById('auth-close-btn');
+
+  if(currentUser){
+    if(usernameEl) usernameEl.textContent = `👤 @${currentUser.username}`;
+    if(logoutBtn) logoutBtn.classList.remove('hidden');
+    if(closeBtn) closeBtn.classList.remove('hidden');
+    updateSyncStatus(isOfflineMode ? 'offline' : 'synced', isOfflineMode ? 'Local' : 'Cloud');
+  } else {
+    if(usernameEl) usernameEl.textContent = '👤 Login';
+    if(logoutBtn) logoutBtn.classList.add('hidden');
+    if(closeBtn) closeBtn.classList.add('hidden');
+    updateSyncStatus('offline', 'Guest');
+  }
+}
+
+async function init(){
+  bindEvents();
+  renderQuote();
+  setInterval(renderQuote, 30*60*1000);
+
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const cachedUser = localStorage.getItem(AUTH_USER_KEY);
+
+  if(cachedUser){
+    try { currentUser = JSON.parse(cachedUser); } catch(e){}
+  }
+
+  if(token){
+    await syncFromCloud(token);
+  } else {
+    loadLocal();
+    showPage('dashboard');
+    updateHeaderUserUI();
+    openAuthModal();
+  }
+}
+
+async function syncFromCloud(token){
+  updateSyncStatus('syncing', 'Connecting...');
+  try {
+    const res = await fetch(`${getApiBase()}/api/data`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if(res.ok){
+      const data = await res.json();
+      currentUser = data.user;
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+      S = { ...S, ...data.data };
+      if(!Array.isArray(S.habits)) S.habits = [];
+      if(!Array.isArray(S.tasks)) S.tasks = [];
+      if(!Array.isArray(S.notes)) S.notes = [];
+      if(!S.settings || typeof S.settings !== 'object') S.settings = {freeze:false,confetti:true,xp:true,sound:false};
+
+      localStorage.setItem(getStorageKey(), JSON.stringify(S));
+      isOfflineMode = false;
+      updateHeaderUserUI();
+      closeModal('auth-modal');
+      showPage('dashboard');
+      toast(`Welcome back, @${currentUser.username}! ☁️`);
+      return true;
+    } else if(res.status === 401){
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+      currentUser = null;
+      loadLocal();
+      updateHeaderUserUI();
+      openAuthModal();
+      return false;
+    }
+  } catch(err){
+    console.warn('Backend server unreachable, running offline local cache:', err);
+    isOfflineMode = true;
+    loadLocal();
+    updateHeaderUserUI();
+    showPage('dashboard');
+    toast('Running in offline local cache mode ⚡');
+    return false;
+  }
+}
+
+function loadLocal(){
+  try {
+    const raw = localStorage.getItem(getStorageKey());
+    if(raw !== null){
+      const d = JSON.parse(raw);
+      if(d && typeof d === 'object'){
+        S = { ...S, ...d };
+        if(!Array.isArray(S.habits)) S.habits = [];
+        if(!Array.isArray(S.tasks)) S.tasks = [];
+        if(!Array.isArray(S.notes)) S.notes = [];
+        if(!S.settings || typeof S.settings !== 'object') S.settings = {freeze:false,confetti:true,xp:true,sound:false};
+        return;
+      }
+    }
+  } catch(e){}
+  seedDefaults();
+}
+
+function clearAllData(){
+  if(confirm('⚠ Reset your habit tracker data to a clean slate?')){
+    localStorage.removeItem(getStorageKey());
+    seedDefaults();
+    if(currentUser) save();
+    location.reload();
+  }
+}
+
+function save(){
+  try {
+    localStorage.setItem(getStorageKey(), JSON.stringify(S));
+  } catch(e){}
+
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if(!token || isOfflineMode) return;
+
+  clearTimeout(syncTimer);
+  updateSyncStatus('syncing', 'Saving...');
+  syncTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/api/data`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(S)
+      });
+      if(res.ok){
+        updateSyncStatus('synced', 'Cloud');
+      } else {
+        updateSyncStatus('error', 'Error');
+      }
+    } catch(err){
+      updateSyncStatus('offline', 'Offline');
+    }
+  }, 500);
+}
+
+function openAuthModal(){
+  const errEl = document.getElementById('auth-error');
+  if(errEl) errEl.classList.add('hidden');
+  openModal('auth-modal');
+}
+
+function switchAuthTab(mode){
+  currentAuthMode = mode;
+  const tabLogin = document.getElementById('tab-login');
+  const tabRegister = document.getElementById('tab-register');
+  const submitBtn = document.getElementById('auth-submit-btn');
+  const tip = document.getElementById('auth-tip');
+  const heading = document.getElementById('auth-heading');
+  const errEl = document.getElementById('auth-error');
+  if(errEl) errEl.classList.add('hidden');
+
+  if(mode === 'login'){
+    tabLogin.className = 'flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition';
+    tabRegister.className = 'flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition';
+    submitBtn.textContent = 'Log In to Dashboard 🚀';
+    tip.textContent = 'Enter your username & phone number to load your cloud habits.';
+    heading.textContent = 'Welcome Back';
+  } else {
+    tabRegister.className = 'flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition';
+    tabLogin.className = 'flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition';
+    submitBtn.textContent = 'Enroll & Create Account ✨';
+    tip.textContent = 'Choose a username and enter your phone number to register.';
+    heading.textContent = 'Enroll New User';
+  }
+}
+
+async function handleAuthSubmit(e){
+  e.preventDefault();
+  const username = document.getElementById('auth-username').value.trim();
+  const phone = document.getElementById('auth-phone').value.trim();
+  const errEl = document.getElementById('auth-error');
+  const submitBtn = document.getElementById('auth-submit-btn');
+
+  errEl.classList.add('hidden');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Authenticating... ⏳';
+
+  const endpoint = currentAuthMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+
+  try {
+    const res = await fetch(`${getApiBase()}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, phone })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+      errEl.textContent = data.detail || data.error || 'Authentication failed.';
+      errEl.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.textContent = currentAuthMode === 'login' ? 'Log In to Dashboard 🚀' : 'Enroll & Create Account ✨';
+      return;
+    }
+
+    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
+    currentUser = data.user;
+    isOfflineMode = false;
+
+    if(data.data){
+      S = { ...S, ...data.data };
+      localStorage.setItem(getStorageKey(), JSON.stringify(S));
+    }
+
+    updateHeaderUserUI();
+    closeModal('auth-modal');
+    showPage('dashboard');
+    toast(currentAuthMode === 'login' ? `Logged in as @${currentUser.username}! 🚀` : `Account created! Welcome @${currentUser.username}! ✨`);
+
+  } catch(err){
+    errEl.textContent = 'Could not connect to backend server. Ensure server.py is running, or continue in Offline Mode.';
+    errEl.classList.remove('hidden');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = currentAuthMode === 'login' ? 'Log In to Dashboard 🚀' : 'Enroll & Create Account ✨';
+  }
+}
+
+function useOfflineGuestMode(){
+  isOfflineMode = true;
+  currentUser = null;
+  loadLocal();
+  updateHeaderUserUI();
+  closeModal('auth-modal');
+  showPage('dashboard');
+  toast('Offline Local Mode active ⚡');
+}
+
+async function logoutUser(){
+  if(confirm('Log out of Habit Codex?')){
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if(token){
+      try {
+        await fetch(`${getApiBase()}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch(e){}
+    }
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+    currentUser = null;
+    updateHeaderUserUI();
+    openAuthModal();
+    toast('Logged out successfully 🚪');
+  }
+}
+
+function seedDefaults(){
+  S.habits = [
+    { id: uid(), name: 'Morning Meditation (10 min)', cat: 'mind', color: '#a78bfa', freq: 'daily', target: 1, unit: 'times', cue: 'After waking up', history: {} },
+    { id: uid(), name: 'Workout / Exercise', cat: 'health', color: '#10b981', freq: 'daily', target: 1, unit: 'times', cue: '5:30 PM', history: {} },
+    { id: uid(), name: 'Read 20 Pages', cat: 'mind', color: '#f59e0b', freq: 'daily', target: 20, unit: 'pages', cue: 'Before sleep', history: {} },
+    { id: uid(), name: 'Deep Work Session', cat: 'work', color: '#06b6d4', freq: 'weekdays', target: 2, unit: 'hours', cue: '9 AM Focus block', history: {} }
+  ];
+  S.tasks = [];
+  S.notes = [
+    { id: uid(), title: '💡 Core Focus', content: 'Consistency over intensity.\nSmall daily habits compound into massive long-term results.', color: 'yellow', pinned: true, updatedAt: new Date().toISOString() },
+    { id: uid(), title: '⚡ Workout Routine', content: 'Mon/Wed/Fri: Full Body Strength\nTue/Thu: Cardio & Mobility', color: 'green', pinned: false, updatedAt: new Date().toISOString() }
+  ];
+  S.xp = 0;
+  S.bestStreak = 0;
+  save();
+}
+
+// ═══════════════════════════════════════════════════════
+// ROUTING / PAGES
+// ═══════════════════════════════════════════════════════
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.page===name);
+  });
+  if(name==='dashboard') renderDashboard();
+  else if(name==='stats') renderStats();
+  else if(name==='notes') renderNotes();
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+function renderDashboard(){
+  renderMonthLabel();
+  renderMatrix();
+  renderStatsStrip();
+  renderTasks();
+  renderTrendChart();
+}
+
+function renderMonthLabel(){
+  const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById('month-label').textContent=`${months[S.viewMonth]} ${S.viewYear}`;
+}
+
+function renderMatrix(){
+  const y=S.viewYear, m=S.viewMonth;
+  const days=new Date(y,m+1,0).getDate();
+  const todayKey=todayK();
+  const count=S.habits.length;
+  document.getElementById('habit-count-badge').textContent=count+' habit'+(count!==1?'s':'');
+
+  if(!count){
+    document.getElementById('matrix-wrap').innerHTML=`
+      <div style="text-align:center;padding:40px 20px;color:#4b5563;">
+        <div style="font-size:40px;margin-bottom:12px;">🌱</div>
+        <p style="font-size:14px;font-weight:600;color:#6b7280;">No habits yet. Start your journey!</p>
+        <button onclick="openHabitModal()" style="margin-top:12px;background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.3);color:#a78bfa;font-size:12px;font-weight:700;padding:8px 20px;border-radius:99px;cursor:pointer;">+ Create First Habit</button>
+      </div>`;
+    return;
+  }
+
+  // Build day headers (Habit Name column is sticky on the left)
+  let dayHdrs='<th style="min-width:220px;max-width:240px;padding:8px 12px 10px 8px;text-align:left;position:sticky;left:0;background:#0d0d14;z-index:20;border-right:1px solid rgba(255,255,255,.08);font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;">Habit Name</th><th style="padding:0 6px 10px;color:#4b5563;font-size:11px;text-align:center;min-width:36px;">🔥</th><th style="padding:0 6px 10px;color:#4b5563;font-size:11px;text-align:center;min-width:40px;">Rate</th>';
+  for(let d=1;d<=days;d++){
+    const k=fmtKey(y,m,d);
+    const isToday=k===todayKey;
+    const dow=['S','M','T','W','T','F','S'][new Date(y,m,d).getDay()];
+    dayHdrs+=`<th id="col-head-${d}" class="${isToday?'today-col-cell':''}" style="padding:4px 3px 8px;text-align:center;min-width:32px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <span style="font-size:9px;font-weight:${isToday?'700':'500'};color:${isToday?'#c4b5fd':'#374151'};">${isToday?'TODAY':dow}</span>
+        <span style="font-size:10px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;${isToday?'background:#7c3aed;color:#fff;box-shadow:0 0 10px rgba(124,58,237,.8);border:1px solid rgba(255,255,255,.4);':'color:#6b7280;'}">${d}</span>
+      </div>
+    </th>`;
+  }
+
+  let rows='';
+  S.habits.forEach((h, idx)=>{
+    const streak=calcStreak(h);
+    let done=0;
+    for(let d=1;d<=days;d++){if(h.history[fmtKey(y,m,d)])done++;}
+    const rate=Math.round((done/days)*100);
+    const catM=CAT_META[h.cat]||{emoji:'📌',col:'#6b7280'};
+
+    let cells='';
+    for(let d=1;d<=days;d++){
+      const k=fmtKey(y,m,d);
+      const isDone=!!h.history[k];
+      const isTod=k===todayKey;
+      cells+=`<td class="${isTod?'today-col-cell':''}" style="padding:4px 3px;text-align:center;">
+        <button class="habit-cell ${isDone?'done':''} ${isTod?'today-cell':''}"
+          style="${isDone?`background:${h.color};box-shadow:0 0 8px ${h.color}55;`:''}"
+          onclick="toggleCell('${h.id}','${k}')" title="${h.name} · ${k} ${isTod?'(TODAY)':''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </td>`;
+    }
+
+    rows+=`<tr id="habit-row-${h.id}" class="habit-row-drag group hover:bg-white/[0.02] transition" draggable="true" data-index="${idx}" ondragstart="onHabitDragStart(event, ${idx})" ondragover="onHabitDragOver(event, ${idx})" ondragleave="onHabitDragLeave(event)" ondrop="onHabitDrop(event, ${idx})" style="border-bottom:1px solid rgba(255,255,255,.04);">
+      <!-- Sticky Habit Name Column with Clean Drag Handle & Action Buttons -->
+      <td style="padding:7px 12px 7px 8px;min-width:230px;max-width:250px;position:sticky;left:0;background:#0a0c13;z-index:15;border-right:1px solid rgba(255,255,255,.08);box-shadow:2px 0 8px rgba(0,0,0,0.5);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          
+          <!-- Sleek Drag Handle (::) -->
+          <div style="display:flex;align-items:center;flex-shrink:0;">
+            <span class="drag-handle" title="Drag & Slide up/down to reorder priority" style="font-size:16px;padding:0 4px 0 2px;cursor:grab;opacity:0.6;" class="hover:opacity-100">⠿</span>
+          </div>
+
+          <!-- Habit Name & Cue -->
+          <div style="display:flex;align-items:center;gap:8px;overflow:hidden;cursor:pointer;flex:1;" onclick="openHabitModal('${h.id}')" title="Click to edit ${esc(h.name)}">
+            <span style="width:10px;height:10px;border-radius:50%;background:${h.color};flex-shrink:0;box-shadow:0 0 8px ${h.color};"></span>
+            <div style="overflow:hidden;">
+              <p style="font-size:13px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(h.name)}</p>
+              ${h.cue?`<p style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">${esc(h.cue)}</p>`:''}
+            </div>
+          </div>
+
+          <!-- Quick Actions: Edit (✏️) and Delete (🗑) -->
+          <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+            <button onclick="openHabitModal('${h.id}')" title="Edit Habit" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:11px;" class="hover:text-white hover:bg-white/20 transition">
+              ✏️
+            </button>
+            <button onclick="quickDeleteHabit('${h.id}')" title="Delete Habit" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:11px;" class="hover:bg-red-500/30 transition">
+              🗑
+            </button>
+          </div>
+        </div>
+      </td>
+      <td style="padding:6px;text-align:center;">
+        <span style="font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;${streak>0?'color:#f59e0b;':'color:#374151;'}">${streak>0?'🔥':'–'}${streak||''}</span>
+      </td>
+      <td style="padding:6px;text-align:center;">
+        <span style="font-size:11px;font-weight:700;${rate>=80?'color:#10b981':rate>=50?'color:#f59e0b':'color:#374151'}">${rate}%</span>
+      </td>
+      ${cells}
+    </tr>`;
+  });
+
+  document.getElementById('matrix-wrap').innerHTML=`
+    <table style="border-collapse:separate;border-spacing:0;width:100%;">
+      <thead><tr>${dayHdrs}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  // Auto scroll smoothly to Today's highlighted column on mobile/desktop if in current month
+  const todayObj = new Date();
+  if (y === todayObj.getFullYear() && m === todayObj.getMonth()) {
+    setTimeout(() => {
+      const todayHeader = document.getElementById(`col-head-${todayObj.getDate()}`);
+      if (todayHeader) {
+        todayHeader.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }, 100);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// PROPORTIONAL HABIT SCORE ENGINE
+// ═══════════════════════════════════════════════════════
+// If user has 5 habits, completing 5/5 = 1.0 point, 4/5 = 0.8 points, etc.
+// Total score is the exact sum of daily points earned across all logged days.
+function calculateScores(){
+  const totalHabits = S.habits.length;
+  if(totalHabits === 0) return { totalScore: 0.0, todayScore: 0.0, daysLogged: 0 };
+
+  const allDates = new Set();
+  S.habits.forEach(h => {
+    Object.keys(h.history).forEach(d => allDates.add(d));
+  });
+
+  let totalScore = 0.0;
+  allDates.forEach(dateKey => {
+    let completedOnDate = 0;
+    S.habits.forEach(h => {
+      if(h.history[dateKey]) completedOnDate++;
+    });
+    // Proportion for the day: completed / totalHabits (e.g. 5/5 = 1.0, 4/5 = 0.8)
+    const dayScore = completedOnDate / totalHabits;
+    totalScore += dayScore;
+  });
+
+  // Today's score
+  const todayKey = todayK();
+  let todayCompleted = 0;
+  S.habits.forEach(h => {
+    if(h.history[todayKey]) todayCompleted++;
+  });
+  const todayScore = totalHabits > 0 ? (todayCompleted / totalHabits) : 0.0;
+
+  return {
+    totalScore: parseFloat(totalScore.toFixed(2)),
+    todayScore: parseFloat(todayScore.toFixed(2)),
+    daysLogged: allDates.size
+  };
+}
+
+function renderStatsStrip(){
+  const todayKey=todayK();
+  let done=0,total=S.habits.length,allChecks=0,maxStreak=0;
+  S.habits.forEach(h=>{
+    if(h.history[todayKey])done++;
+    const s=calcStreak(h);
+    if(s>maxStreak)maxStreak=s;
+    allChecks+=Object.keys(h.history).length;
+  });
+  const pct=total?Math.round(done/total*100):0;
+
+  // Monthly
+  const y=S.viewYear,m=S.viewMonth,days=new Date(y,m+1,0).getDate();
+  let mDone=0;
+  S.habits.forEach(h=>{for(let d=1;d<=days;d++)if(h.history[fmtKey(y,m,d)])mDone++;});
+  const mRate=total?Math.round(mDone/(total*days)*100):0;
+
+  if(maxStreak>S.bestStreak)S.bestStreak=maxStreak;
+
+  // Calculate Scores
+  const { totalScore, todayScore } = calculateScores();
+
+  set('stat-pct',pct+'%');
+  set('stat-ratio',done+'/'+total);
+  set('stat-streak',maxStreak);
+  set('stat-month',mRate+'%');
+  set('stat-total-checks',allChecks+' total checks');
+
+  // Habit Score card values
+  set('stat-score-total', totalScore.toFixed(1));
+  set('stat-score-today', `+${todayScore.toFixed(1)} today`);
+  set('header-score', `${totalScore.toFixed(1)} Score`);
+  setStyle('today-bar','width',pct+'%');
+  setStyle('score-bar','width', (todayScore * 100) + '%');
+
+  const scoreBadge = document.getElementById('score-badge');
+  if(scoreBadge) scoreBadge.classList.toggle('hidden',!S.settings.xp);
+}
+
+function renderTasks(){
+  const items=S.tasks;
+  const done=items.filter(t=>t.done).length;
+  const badge=document.getElementById('tasks-badge');
+  badge.textContent=done+'/'+items.length;
+  badge.style.background=done===items.length&&items.length?'rgba(16,185,129,.2)':'rgba(16,185,129,.1)';
+
+  const clearBtn=document.getElementById('btn-clear-completed');
+  clearBtn.classList.toggle('hidden',done===0);
+
+  const prio={high:'#ef4444',medium:'#f59e0b',low:'#10b981'};
+  const prioLabel={high:'🔥 High',medium:'⚡ Med',low:'🌿 Low'};
+
+  document.getElementById('tasks-list').innerHTML=items.length?items.map(t=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;gap:10px;" class="glass-hover" onclick="(()=>{})()">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+        <button onclick="toggleTask('${t.id}')" style="width:20px;height:20px;border-radius:6px;border:1.5px solid ${t.done?'transparent':'rgba(255,255,255,.12)'};background:${t.done?'#7c3aed':'transparent'};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .2s;">
+          ${t.done?`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`:''}
+        </button>
+        <span style="font-size:13px;font-weight:500;${t.done?'text-decoration:line-through;color:#374151;':'color:#e2e8f0;'}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <span style="font-size:10px;font-weight:700;color:${prio[t.priority]};background:${prio[t.priority]}18;padding:2px 8px;border-radius:99px;">${prioLabel[t.priority]}</span>
+        <button onclick="deleteTask('${t.id}')" style="color:#374151;padding:4px;border-radius:6px;cursor:pointer;background:none;border:none;" class="hover:text-red-400 transition">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:#374151;font-size:13px;">All clear! Add a task above 🎉</div>`;
+}
+
+function renderTrendChart(){
+  const labels=[],habitData=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const k=fmtKey(d.getFullYear(),d.getMonth(),d.getDate());
+    labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
+    let done=0;
+    S.habits.forEach(h=>{if(h.history[k])done++;});
+    habitData.push(S.habits.length?Math.round(done/S.habits.length*100):0);
+  }
+  const ctx=document.getElementById('trend-chart').getContext('2d');
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Habits Completion %',data:habitData,borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,.15)',fill:true,tension:.4,borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#7c3aed',pointBorderColor:'#050508',pointBorderWidth:2},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'#0d0d14',titleColor:'#e2e8f0',bodyColor:'#9ca3af',borderColor:'rgba(255,255,255,.1)',borderWidth:1,callbacks:{label:c=>` ${c.raw}% completed`}}},scales:{x:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#64748b',font:{size:10}}},y:{min:0,max:100,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:10},callback:v=>v+'%'},stepSize:25}}},
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// STATS PAGE
+// ═══════════════════════════════════════════════════════
+function renderStats(){
+  const allChecks=S.habits.reduce((s,h)=>s+Object.keys(h.history).length,0);
+  const allDays=new Set(S.habits.flatMap(h=>Object.keys(h.history))).size;
+  const { totalScore, todayScore } = calculateScores();
+
+  set('stats-score-rank', `${totalScore.toFixed(1)} Points`);
+  set('stats-score-badge-text', totalScore.toFixed(1));
+  set('stats-score-today-text', `Today: +${todayScore.toFixed(1)} pts (${Math.round(todayScore*100)}%)`);
+  
+  const todayPct = Math.min(Math.round(todayScore * 100), 100);
+  setStyle('stats-score-bar', 'width', todayPct + '%');
+
+  const ring=document.getElementById('stats-score-ring');
+  if(ring){
+    const circum=188.4;
+    ring.style.strokeDashoffset = circum * (1 - todayPct / 100);
+  }
+
+  set('as-total-days',allDays);
+  set('as-total-checks',allChecks);
+  set('as-best-streak',S.bestStreak);
+
+  // Per-habit stats
+  const statsHtml=S.habits.map(h=>{
+    const checks=Object.keys(h.history).length;
+    const streak=calcStreak(h);
+    const rate=checks>0?Math.round(streak/(checks||1)*100):0;
+    const catM=CAT_META[h.cat]||{emoji:'📌'};
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+      <span style="width:10px;height:10px;border-radius:50%;background:${h.color};flex-shrink:0;box-shadow:0 0 8px ${h.color};"></span>
+      <div style="flex:1;min-width:0;">
+        <p style="font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(h.name)}</p>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <div style="flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;">
+            <div style="height:4px;border-radius:99px;background:${h.color};width:${Math.min(checks/30*100,100)}%;transition:width .5s;"></div>
+          </div>
+          <span style="font-size:11px;color:#4b5563;white-space:nowrap;">${checks} checks</span>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <p style="font-size:13px;font-weight:700;${streak>0?'color:#f59e0b;':'color:#374151;'}">${streak>0?'🔥'+streak:'–'}</p>
+        <p style="font-size:10px;color:#4b5563;">streak</p>
+      </div>
+    </div>`;
+  }).join('');
+  set('habit-stats-list',statsHtml);
+
+  renderHeatmap();
+}
+
+function renderHeatmap(){
+  const today=new Date();
+  const weeks=52;
+  const days=weeks*7;
+  let html='<div style="display:flex;gap:3px;">';
+
+  // Group by week
+  const startDate=new Date(today);
+  startDate.setDate(startDate.getDate()-days+1);
+
+  const allHabitDays={};
+  S.habits.forEach(h=>Object.keys(h.history).forEach(k=>{
+    allHabitDays[k]=(allHabitDays[k]||0)+1;
+  }));
+  const maxVal=Math.max(...Object.values(allHabitDays),1);
+
+  for(let w=0;w<weeks;w++){
+    html+='<div style="display:flex;flex-direction:column;gap:3px;">';
+    for(let d=0;d<7;d++){
+      const date=new Date(startDate);
+      date.setDate(startDate.getDate()+w*7+d);
+      const k=fmtKey(date.getFullYear(),date.getMonth(),date.getDate());
+      const val=allHabitDays[k]||0;
+      const intensity=val?Math.ceil((val/maxVal)*4):0;
+      const colors=['rgba(255,255,255,.04)','rgba(124,58,237,.2)','rgba(124,58,237,.4)','rgba(124,58,237,.65)','#7c3aed'];
+      const future=date>today;
+      html+=`<div class="hmap-cell" style="background:${future?'rgba(255,255,255,.02)':colors[intensity]};opacity:${future?.3:1};" title="${k}: ${val} habit${val!==1?'s':''} done"></div>`;
+    }
+    html+='</div>';
+  }
+  html+='</div>';
+  document.getElementById('heatmap-container').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+// STICKY NOTES PAGE
+// ═══════════════════════════════════════════════════════
+const NOTE_THEMES = {
+  yellow: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.3)', glow: 'rgba(245,158,11,0.2)', tag: '#f59e0b', text: '#fde68a' },
+  green: { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', glow: 'rgba(16,185,129,0.2)', tag: '#10b981', text: '#a7f3d0' },
+  purple: { bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.3)', glow: 'rgba(168,85,247,0.2)', tag: '#c084fc', text: '#e9d5ff' },
+  cyan: { bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.3)', glow: 'rgba(6,182,212,0.2)', tag: '#06b6d4', text: '#a5f3fc' },
+  pink: { bg: 'rgba(236,72,153,0.08)', border: 'rgba(236,72,153,0.3)', glow: 'rgba(236,72,153,0.2)', tag: '#f472b6', text: '#fbcfe8' },
+  slate: { bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.3)', glow: 'rgba(100,116,139,0.2)', tag: '#94a3b8', text: '#e2e8f0' },
+};
+
+let selectedNoteColor = 'yellow';
+
+function renderNotes(){
+  if(!Array.isArray(S.notes)) S.notes = [];
+  const searchInput = document.getElementById('notes-search-input');
+  const search = (searchInput ? searchInput.value : '').toLowerCase().trim();
+  const badge = document.getElementById('notes-count-badge');
+  if(badge) badge.textContent = `${S.notes.length} note${S.notes.length !== 1 ? 's' : ''}`;
+
+  let list = [...S.notes];
+  if(search){
+    list = list.filter(n => (n.title && n.title.toLowerCase().includes(search)) || (n.content && n.content.toLowerCase().includes(search)));
+  }
+
+  // Sort pinned notes to top, then by latest updatedAt
+  list.sort((a, b) => {
+    if(a.pinned && !b.pinned) return -1;
+    if(!a.pinned && b.pinned) return 1;
+    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+  });
+
+  const grid = document.getElementById('notes-grid');
+  if(!grid) return;
+
+  if(!list.length){
+    grid.innerHTML = `
+      <div class="col-span-full text-center py-16 px-4">
+        <div style="font-size:44px;margin-bottom:12px;">📝</div>
+        <p class="text-base font-semibold text-slate-300">${search ? 'No notes found matching your search' : 'No sticky notes yet'}</p>
+        <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">${search ? 'Try searching for a different keyword or clear search.' : 'Capture quick ideas, workout plans, quotes, or reminders here.'}</p>
+        <button onclick="openNoteModal()" style="margin-top:16px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:12px;font-weight:700;padding:10px 22px;border-radius:12px;border:none;cursor:pointer;box-shadow:0 0 14px rgba(245,158,11,0.4);" class="hover:opacity-90 transition">
+          + Create Sticky Note
+        </button>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(n => {
+    const theme = NOTE_THEMES[n.color] || NOTE_THEMES.yellow;
+    const dateStr = n.updatedAt ? new Date(n.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const formattedContent = esc(n.content || '').replace(/\n/g, '<br>');
+
+    return `
+      <div class="sticky-note-card" style="background:${theme.bg};border:1px solid ${theme.border};box-shadow:0 6px 24px rgba(0,0,0,0.4), 0 0 16px ${theme.glow};">
+        <div class="sticky-tape"></div>
+        
+        <div>
+          <!-- Card Header (Pin, Title, Actions) -->
+          <div class="flex items-start justify-between gap-2 mb-2 pt-1">
+            <div class="flex items-center gap-1.5 flex-1 min-w-0">
+              <button onclick="togglePinNote('${n.id}')" title="${n.pinned ? 'Unpin note' : 'Pin note to top'}" style="color:${n.pinned ? '#f59e0b' : '#64748b'};font-size:13px;padding:2px 4px;background:rgba(255,255,255,0.06);border-radius:6px;border:none;cursor:pointer;" class="hover:text-amber-400 hover:bg-white/10 transition">
+                📌
+              </button>
+              <h3 style="font-size:14px;font-weight:700;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(n.title || 'Sticky Note')}</h3>
+            </div>
+
+            <!-- Quick Action Icons -->
+            <div class="flex items-center gap-1 shrink-0">
+              <button onclick="copyNoteText('${n.id}')" title="Copy text" style="color:#94a3b8;font-size:12px;padding:4px 6px;border-radius:6px;background:rgba(255,255,255,0.06);border:none;cursor:pointer;" class="hover:text-white hover:bg-white/15 transition">
+                📋
+              </button>
+              <button onclick="openNoteModal('${n.id}')" title="Edit note" style="color:#94a3b8;font-size:12px;padding:4px 6px;border-radius:6px;background:rgba(255,255,255,0.06);border:none;cursor:pointer;" class="hover:text-white hover:bg-white/15 transition">
+                ✏️
+              </button>
+              <button onclick="quickDeleteNote('${n.id}')" title="Delete note" style="color:#ef4444;font-size:12px;padding:4px 6px;border-radius:6px;background:rgba(239,68,68,0.15);border:none;cursor:pointer;" class="hover:bg-red-500/30 transition">
+                🗑
+              </button>
+            </div>
+          </div>
+
+          <!-- Note Content Body -->
+          <div style="font-size:13px;line-height:1.55;color:#cbd5e1;word-break:break-word;max-height:220px;overflow-y:auto;padding-right:4px;" class="mb-4">
+            ${formattedContent}
+          </div>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="flex items-center justify-between pt-2 border-t border-white/5 text-[11px] text-slate-500">
+          <span>${dateStr}</span>
+          ${n.pinned ? `<span style="color:#f59e0b;font-weight:700;">Pinned 📌</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openNoteModal(id = null){
+  const modal = document.getElementById('note-modal');
+  const form = document.getElementById('note-form');
+  form.reset();
+  selectedNoteColor = 'yellow';
+  document.querySelectorAll('.note-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === selectedNoteColor));
+  document.getElementById('btn-delete-note').classList.add('hidden');
+
+  if(id){
+    const n = S.notes.find(x => x.id === id);
+    if(!n) return;
+    document.getElementById('edit-note-id').value = n.id;
+    document.getElementById('note-title-input').value = n.title || '';
+    document.getElementById('note-content-input').value = n.content || '';
+    document.getElementById('note-pinned-input').checked = !!n.pinned;
+    selectedNoteColor = n.color || 'yellow';
+    document.querySelectorAll('.note-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === selectedNoteColor));
+    document.getElementById('note-modal-title').textContent = 'Edit Sticky Note';
+    document.getElementById('btn-delete-note').classList.remove('hidden');
+  } else {
+    document.getElementById('edit-note-id').value = '';
+    document.getElementById('note-modal-title').textContent = 'New Sticky Note';
+  }
+  openModal('note-modal');
+}
+
+function selectNoteColor(color, el){
+  selectedNoteColor = color;
+  document.querySelectorAll('.note-swatch').forEach(s => s.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+
+function saveNote(e){
+  e.preventDefault();
+  const id = document.getElementById('edit-note-id').value;
+  const title = document.getElementById('note-title-input').value.trim();
+  const content = document.getElementById('note-content-input').value.trim();
+  const pinned = document.getElementById('note-pinned-input').checked;
+
+  if(!content){
+    toast('Please enter note content');
+    return;
+  }
+
+  const noteData = {
+    title: title || 'Sticky Note',
+    content,
+    color: selectedNoteColor,
+    pinned,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if(!Array.isArray(S.notes)) S.notes = [];
+
+  if(id){
+    const n = S.notes.find(x => x.id === id);
+    if(n) Object.assign(n, noteData);
+    toast('Sticky note updated! 📌');
+  } else {
+    S.notes.unshift({ id: uid(), ...noteData });
+    toast('New note added! 📌');
+  }
+
+  save();
+  closeModal('note-modal');
+  renderNotes();
+}
+
+function togglePinNote(id){
+  const n = S.notes.find(x => x.id === id);
+  if(!n) return;
+  n.pinned = !n.pinned;
+  n.updatedAt = new Date().toISOString();
+  save();
+  renderNotes();
+  toast(n.pinned ? 'Note pinned to top 📌' : 'Note unpinned');
+}
+
+function copyNoteText(id){
+  const n = S.notes.find(x => x.id === id);
+  if(!n) return;
+  const fullText = (n.title ? n.title + '\n\n' : '') + n.content;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(fullText).then(() => {
+      toast('Note copied to clipboard! 📋');
+    }).catch(() => {
+      toast('Note text copied! 📋');
+    });
+  } else {
+    toast('Note text copied! 📋');
+  }
+}
+
+function quickDeleteNote(id){
+  const n = S.notes.find(x => x.id === id);
+  const name = n && n.title ? n.title : 'this note';
+  if(confirm(`Delete "${name}"?`)){
+    S.notes = S.notes.filter(x => x.id !== id);
+    save();
+    renderNotes();
+    toast('Note deleted 🗑');
+  }
+}
+
+function deleteCurrentNote(){
+  const id = document.getElementById('edit-note-id').value;
+  if(!id) return;
+  quickDeleteNote(id);
+  closeModal('note-modal');
+}
+
+// ═══════════════════════════════════════════════════════
+// HABIT MODAL
+// ═══════════════════════════════════════════════════════
+function openHabitModal(id=null){
+  const modal=document.getElementById('habit-modal');
+  const form=document.getElementById('habit-form');
+  form.reset();
+  selectedColor='#7c3aed';
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.color===selectedColor));
+  document.getElementById('habit-color').value=selectedColor;
+  document.getElementById('btn-delete-habit').classList.add('hidden');
+
+  if(id){
+    const h=S.habits.find(h=>h.id===id);
+    if(!h)return;
+    document.getElementById('edit-habit-id').value=h.id;
+    document.getElementById('habit-name').value=h.name;
+    document.getElementById('habit-category').value=h.cat||'health';
+    document.getElementById('habit-frequency').value=h.freq||'daily';
+    document.getElementById('habit-target').value=h.target||1;
+    document.getElementById('habit-unit').value=h.unit||'times';
+    document.getElementById('habit-cue').value=h.cue||'';
+    selectedColor=h.color||'#7c3aed';
+    document.getElementById('habit-color').value=selectedColor;
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.color===selectedColor));
+    document.getElementById('modal-title').textContent='Edit Habit';
+    document.getElementById('btn-delete-habit').classList.remove('hidden');
+  } else {
+    document.getElementById('edit-habit-id').value='';
+    document.getElementById('modal-title').textContent='New Habit';
+  }
+  openModal('habit-modal');
+}
+
+function selectColor(el){
+  selectedColor=el.dataset.color;
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('habit-color').value=selectedColor;
+}
+
+function saveHabit(e){
+  e.preventDefault();
+  const id=document.getElementById('edit-habit-id').value;
+  const color=document.getElementById('habit-color').value||selectedColor;
+  const data={
+    name:document.getElementById('habit-name').value.trim(),
+    cat:document.getElementById('habit-category').value,
+    freq:document.getElementById('habit-frequency').value,
+    color,
+    target:+document.getElementById('habit-target').value||1,
+    unit:document.getElementById('habit-unit').value,
+    cue:document.getElementById('habit-cue').value.trim(),
+  };
+  if(id){
+    const h=S.habits.find(h=>h.id===id);
+    if(h)Object.assign(h,data);
+    toast('Habit updated ✅');
+  } else {
+    S.habits.push({id:uid(),...data,history:{}});
+    toast('New habit created! 🚀');
+  }
+  save();
+  closeModal('habit-modal');
+  renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════
+// HABIT REORDERING & SLIDER FUNCTIONS
+// ═══════════════════════════════════════════════════════
+function moveHabit(currentIndex, direction){
+  const newIndex = currentIndex + direction;
+  if(newIndex < 0 || newIndex >= S.habits.length) return;
+
+  // Swap elements
+  const temp = S.habits[currentIndex];
+  S.habits[currentIndex] = S.habits[newIndex];
+  S.habits[newIndex] = temp;
+
+  save();
+  renderDashboard();
+  toast(`Reordered habit priority ↕️`);
+}
+
+let draggedHabitIndex = null;
+
+function onHabitDragStart(e, index){
+  draggedHabitIndex = index;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try {
+    e.dataTransfer.setData('text/plain', index);
+  } catch(err){}
+}
+
+function onHabitDragOver(e, index){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = document.getElementById(`habit-row-${S.habits[index].id}`);
+  if(row && index !== draggedHabitIndex){
+    row.classList.add('drag-over');
+  }
+}
+
+function onHabitDragLeave(e){
+  const row = e.target.closest('tr');
+  if(row) row.classList.remove('drag-over');
+}
+
+function onHabitDrop(e, targetIndex){
+  e.preventDefault();
+  document.querySelectorAll('.habit-row-drag').forEach(r => {
+    r.classList.remove('dragging');
+    r.classList.remove('drag-over');
+  });
+
+  if(draggedHabitIndex === null || draggedHabitIndex === targetIndex) return;
+
+  // Move dragged item to target position
+  const movedItem = S.habits.splice(draggedHabitIndex, 1)[0];
+  S.habits.splice(targetIndex, 0, movedItem);
+  draggedHabitIndex = null;
+
+  save();
+  renderDashboard();
+  toast('Habit priority updated ↕️');
+}
+
+function quickDeleteHabit(id){
+  const h = S.habits.find(x => x.id === id);
+  const name = h ? h.name : 'this habit';
+  if (confirm(`Are you sure you want to delete "${name}" and all its history?`)) {
+    S.habits = S.habits.filter(x => x.id !== id);
+    save();
+    renderDashboard();
+    toast('Habit deleted 🗑');
+  }
+}
+
+function deleteHabit(){
+  const id=document.getElementById('edit-habit-id').value;
+  if(!id) return;
+  const h = S.habits.find(x => x.id === id);
+  const name = h ? h.name : 'this habit';
+  if(!confirm(`Delete "${name}" and all its history?`))return;
+  S.habits=S.habits.filter(h=>h.id!==id);
+  save();
+  closeModal('habit-modal');
+  renderDashboard();
+  toast('Habit deleted 🗑');
+}
+
+// ═══════════════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════════════
+function toggleCell(habitId,dateKey){
+  const h=S.habits.find(h=>h.id===habitId);
+  if(!h)return;
+  const wasDone=!!h.history[dateKey];
+  if(wasDone){
+    delete h.history[dateKey];
+  } else {
+    h.history[dateKey]=true;
+    if(dateKey===todayK()&&S.settings.confetti)fireConfetti();
+    if(S.settings.sound)playTick();
+  }
+  save();
+  renderMatrix();
+  renderStatsStrip();
+}
+
+function toggleTask(id){
+  const t=S.tasks.find(t=>t.id===id);
+  if(!t)return;
+  t.done=!t.done;
+  if(t.done && S.settings.confetti) fireConfetti();
+  save();
+  renderTasks();
+  renderStatsStrip();
+}
+
+function deleteTask(id){
+  S.tasks=S.tasks.filter(t=>t.id!==id);
+  save();
+  renderTasks();
+  toast('Task removed');
+}
+
+function saveSetting(key,val){
+  S.settings[key]=val;
+  save();
+}
+
+// ═══════════════════════════════════════════════════════
+// QUOTE
+// ═══════════════════════════════════════════════════════
+let quoteIdx=Math.floor(Math.random()*QUOTES.length);
+function renderQuote(){
+  const q=QUOTES[quoteIdx%QUOTES.length];
+  set('quote-text',`"${q.t}"`);
+  set('quote-author','— '+q.a);
+}
+function nextQuote(){quoteIdx++;renderQuote();}
+
+// ═══════════════════════════════════════════════════════
+// GAMIFICATION
+// ═══════════════════════════════════════════════════════
+function getLevel(xp){
+  let level=0;
+  for(let i=0;i<LEVEL_THRESHOLDS.length;i++){
+    if(xp>=LEVEL_THRESHOLDS[i])level=i;
+  }
+  const currentXp=LEVEL_THRESHOLDS[level];
+  const nextXp=LEVEL_THRESHOLDS[level+1]||LEVEL_THRESHOLDS[level]*2;
+  const progress=Math.min(Math.round((xp-currentXp)/(nextXp-currentXp)*100),100);
+  return{level,name:LEVEL_NAMES[level]||'Godmode',progress,xp,xpToNext:nextXp};
+}
+
+// ═══════════════════════════════════════════════════════
+// BACKUP / RESTORE
+// ═══════════════════════════════════════════════════════
+function jumpToToday(){
+  const now = new Date();
+  S.viewYear = now.getFullYear();
+  S.viewMonth = now.getMonth();
+  renderDashboard();
+  setTimeout(() => {
+    const todayHeader = document.getElementById(`col-head-${now.getDate()}`);
+    if (todayHeader) {
+      todayHeader.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, 100);
+  toast(`Jumped to Today: ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ⚡`);
+}
+
+function exportData(){
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='habit_codex_backup_'+todayK()+'.json';
+  a.click();
+  toast('Backup downloaded! 📦');
+}
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+function calcStreak(h){
+  let streak=0,d=new Date();
+  const tk=todayK();
+  if(!h.history[tk])d.setDate(d.getDate()-1);
+  for(let i=0;i<365;i++){
+    const k=fmtKey(d.getFullYear(),d.getMonth(),d.getDate());
+    if(h.history[k]){streak++;d.setDate(d.getDate()-1);}
+    else break;
+  }
+  return streak;
+}
+function fmtKey(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function todayK(){const t=new Date();return fmtKey(t.getFullYear(),t.getMonth(),t.getDate());}
+function uid(){return 'id_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);}
+function esc(s){if(!s)return '';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function set(id,html){const el=document.getElementById(id);if(el)el.innerHTML=html;}
+function setStyle(id,prop,val){const el=document.getElementById(id);if(el)el.style[prop]=val;}
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function fireConfetti(){
+  confetti({particleCount:60,spread:70,origin:{y:.85},colors:['#7c3aed','#10b981','#f59e0b','#ec4899','#06b6d4']});
+}
+function playTick(){
+  try{
+    const ctx=new AudioContext();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=880;osc.type='sine';
+    gain.gain.setValueAtTime(.2,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);
+    osc.start();osc.stop(ctx.currentTime+.15);
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
+// EVENT BINDINGS
+// ═══════════════════════════════════════════════════════
+function bindEvents(){
+  // Month nav
+  document.getElementById('prev-month').onclick=()=>{
+    S.viewMonth--;if(S.viewMonth<0){S.viewMonth=11;S.viewYear--;}
+    renderDashboard();
+  };
+  document.getElementById('next-month').onclick=()=>{
+    S.viewMonth++;if(S.viewMonth>11){S.viewMonth=0;S.viewYear++;}
+    renderDashboard();
+  };
+
+  // Add habit button
+  document.getElementById('btn-add-habit').onclick=()=>openHabitModal();
+
+  // Habit form
+  document.getElementById('habit-form').onsubmit=saveHabit;
+  document.getElementById('btn-delete-habit').onclick=deleteHabit;
+
+  // Color picker custom
+  document.getElementById('habit-color').oninput=e=>{
+    selectedColor=e.target.value;
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  };
+
+  // Task form
+  document.getElementById('task-form').onsubmit=e=>{
+    e.preventDefault();
+    const input=document.getElementById('task-input');
+    const text=input.value.trim();
+    if(!text)return;
+    S.tasks.unshift({id:uid(),text,priority:document.getElementById('task-priority').value,done:false});
+    input.value='';
+    save();renderTasks();renderStatsStrip();
+    toast('Task added! ✅');
+  };
+
+  // Clear completed tasks
+  document.getElementById('btn-clear-completed').onclick=()=>{
+    S.tasks=S.tasks.filter(t=>!t.done);
+    save();renderTasks();toast('Cleared completed tasks');
+  };
+
+  // Quote
+  document.getElementById('btn-new-quote').onclick=nextQuote;
+
+  // Export/Import
+  document.getElementById('btn-export').onclick=exportData;
+  document.getElementById('btn-import').onclick=()=>document.getElementById('import-file').click();
+  document.getElementById('import-file').onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const parsed=JSON.parse(ev.target.result);
+        if(parsed.habits){
+          Object.assign(S,parsed);save();
+          renderDashboard();toast('Backup restored! 🎉');
+        }else alert('Invalid backup file.');
+      }catch{alert('Could not parse backup file.');}
+    };
+    reader.readAsText(file);e.target.value='';
+  };
+
+  // Settings import btn
+  document.getElementById('settings-import-btn').onclick=()=>document.getElementById('import-file').click();
+
+  // Load settings into toggles
+  ['freeze','confetti','xp','sound'].forEach(k=>{
+    const el=document.getElementById('setting-'+k);
+    if(el)el.checked=S.settings[k]??el.checked;
+  });
+
+  // Close modals on backdrop click
+  document.getElementById('habit-modal').onclick=e=>{
+    if(e.target===e.currentTarget)closeModal('habit-modal');
+  };
+  document.getElementById('note-modal').onclick=e=>{
+    if(e.target===e.currentTarget)closeModal('note-modal');
+  };
+  document.getElementById('auth-modal').onclick=e=>{
+    if(e.target===e.currentTarget && currentUser)closeModal('auth-modal');
+  };
+
+  // Setup 2-second hover guide triggers
+  setupHoverGuides();
+}
+
+// ═══════════════════════════════════════════════════════
+// 2-SECOND INTERACTIVE HOVER GUIDE ENGINE
+// ═══════════════════════════════════════════════════════
+let hoverGuideTimer = null;
+let currentGuideElement = null;
+
+function setupHoverGuides(){
+  const popover = document.getElementById('feature-guide-popover');
+  if(!popover) return;
+
+  document.body.addEventListener('mouseover', (e) => {
+    const target = e.target.closest('[data-guide]');
+    if(!target || target === currentGuideElement) return;
+
+    clearTimeout(hoverGuideTimer);
+    currentGuideElement = target;
+
+    // Start 2000ms (2 seconds) dwell timer
+    hoverGuideTimer = setTimeout(() => {
+      showGuidePopover(target);
+    }, 2000);
+  });
+
+  document.body.addEventListener('mouseout', (e) => {
+    const target = e.target.closest('[data-guide]');
+    if(target && target === currentGuideElement){
+      clearTimeout(hoverGuideTimer);
+      currentGuideElement = null;
+      hideGuidePopover();
+    }
+  });
+
+  // Hide when clicking or scrolling
+  window.addEventListener('scroll', hideGuidePopover, { passive: true });
+  document.body.addEventListener('click', hideGuidePopover);
+}
+
+function showGuidePopover(target){
+  const popover = document.getElementById('feature-guide-popover');
+  if(!popover || !target) return;
+
+  const title = target.dataset.title || 'Feature Guide';
+  const desc = target.dataset.desc || '';
+  const tip = target.dataset.tip || '';
+  const icon = target.dataset.icon || '💡';
+
+  document.getElementById('guide-title').textContent = title;
+  document.getElementById('guide-desc').textContent = desc;
+  document.getElementById('guide-icon').textContent = icon;
+  document.getElementById('guide-tip').textContent = tip ? `✨ Pro Tip: ${tip}` : '✨ Pro Tip: Hover 2s on any card for help';
+
+  const rect = target.getBoundingClientRect();
+  const popoverWidth = 300;
+  const popoverHeight = 130;
+
+  let top = rect.bottom + 10;
+  let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
+
+  // Keep within screen bounds
+  if(left < 16) left = 16;
+  if(left + popoverWidth > window.innerWidth - 16) left = window.innerWidth - popoverWidth - 16;
+  if(top + popoverHeight > window.innerHeight - 20){
+    top = rect.top - popoverHeight - 10;
+  }
+
+  popover.style.top = `${Math.max(10, top)}px`;
+  popover.style.left = `${left}px`;
+  popover.classList.add('active');
+}
+
+function hideGuidePopover(){
+  const popover = document.getElementById('feature-guide-popover');
+  if(popover) popover.classList.remove('active');
+}
+
+// ═══════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
