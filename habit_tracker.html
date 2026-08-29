@@ -701,7 +701,7 @@ tr.habit-row-drag.drag-over {
 </div>
 
 <!-- ══════════════════════════════════════════════════
-     AUTHENTICATION & USER ENROLLMENT MODAL
+     PASSWORDLESS EMAIL OTP AUTH MODAL (TWO-STEP)
 ══════════════════════════════════════════════════ -->
 <div id="auth-modal" class="modal-overlay">
   <div class="modal-box max-w-md">
@@ -710,7 +710,7 @@ tr.habit-row-drag.drag-over {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
       <h3 class="text-lg font-black text-white" id="auth-heading">AdatTracker Pro</h3>
-      <p class="text-xs text-slate-400 mt-1" id="auth-subheading">Multi-User Cloud & Self-Hosted Database</p>
+      <p class="text-xs text-slate-400 mt-1" id="auth-subheading">Passwordless Email OTP Authentication</p>
       
       <!-- Optional close button if already logged in -->
       <button id="auth-close-btn" onclick="closeModal('auth-modal')" style="position:absolute;right:16px;top:16px;color:#6b7280;" class="hidden hover:text-white transition p-1 rounded-lg hover:bg-white/10">
@@ -718,51 +718,106 @@ tr.habit-row-drag.drag-over {
       </button>
     </div>
 
-    <!-- Auth Tabs: Login vs Enroll -->
-    <div class="flex border-b border-white/5 bg-white/[0.02]">
-      <button type="button" id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition">
-        Log In
-      </button>
-      <button type="button" id="tab-register" onclick="switchAuthTab('register')" class="flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition">
-        Enroll New User
-      </button>
-    </div>
-
-    <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="p-6 space-y-4">
-      <!-- Username -->
-      <div>
-        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Username</label>
-        <div class="relative">
-          <input type="text" id="auth-username" placeholder="e.g. sumit, alex…" required minlength="2" maxlength="30" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
-          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">👤</span>
-        </div>
-      </div>
-
-      <!-- Phone Number -->
-      <div>
-        <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Phone Number</label>
-        <div class="relative">
-          <input type="tel" id="auth-phone" placeholder="e.g. 9876543210…" required minlength="4" maxlength="20" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
-          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">📱</span>
-        </div>
-        <p class="text-[10px] text-slate-500 mt-1.5" id="auth-tip">Enter username & phone number to access your isolated profile.</p>
-      </div>
-
-      <!-- Error message container -->
-      <div id="auth-error" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center font-medium"></div>
-
-      <!-- Submit button -->
-      <button type="submit" id="auth-submit-btn" style="width:100%;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:12px;padding:12px;color:white;font-size:13px;font-weight:700;border:none;cursor:pointer;" class="glow-purple hover:opacity-90 transition">
-        Log In to Dashboard 🚀
-      </button>
-
-      <!-- Offline / Local Mode bypass -->
-      <div class="text-center pt-2 border-t border-white/5">
-        <button type="button" onclick="useOfflineGuestMode()" class="text-[11px] text-slate-500 hover:text-slate-300 transition underline">
-          Continue in Offline Local Mode
+    <!-- Step 1: Input Screen -->
+    <div id="auth-step-1">
+      <!-- Auth Tabs: Login vs Enroll -->
+      <div class="flex border-b border-white/5 bg-white/[0.02]">
+        <button type="button" id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition">
+          Log In
+        </button>
+        <button type="button" id="tab-register" onclick="switchAuthTab('signup')" class="flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition">
+          Enroll New User
         </button>
       </div>
-    </form>
+
+      <form id="auth-send-form" onsubmit="handleSendOtp(event)" class="p-6 space-y-4">
+        <!-- Username input (shown on signup) -->
+        <div id="auth-username-field" class="hidden">
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Username</label>
+          <div class="relative">
+            <input type="text" id="auth-username" placeholder="e.g. alex, sumit…" minlength="2" maxlength="30" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">👤</span>
+          </div>
+        </div>
+
+        <!-- Login ID (Username or Email on Login) -->
+        <div id="auth-login-field">
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Username or Email</label>
+          <div class="relative">
+            <input type="text" id="auth-login-id" placeholder="e.g. alex or alex@example.com" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">✉️</span>
+          </div>
+        </div>
+
+        <!-- Email input (shown on signup) -->
+        <div id="auth-email-field" class="hidden">
+          <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">Email Address</label>
+          <div class="relative">
+            <input type="email" id="auth-email" placeholder="e.g. alex@example.com" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;color:#e2e8f0;font-size:14px;padding:11px 14px 11px 36px;outline:none;" onfocus="this.style.borderColor='rgba(139,92,246,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;">✉️</span>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-slate-500 mt-1.5" id="auth-tip">We will send a 6-digit passwordless verification code to your email.</p>
+
+        <!-- Error message container -->
+        <div id="auth-error-1" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center font-medium"></div>
+
+        <!-- Submit button -->
+        <button type="submit" id="auth-send-btn" style="width:100%;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:12px;padding:12px;color:white;font-size:13px;font-weight:700;border:none;cursor:pointer;" class="glow-purple hover:opacity-90 transition">
+          Send Verification Code ✉️
+        </button>
+
+        <!-- Offline / Local Mode bypass -->
+        <div class="text-center pt-2 border-t border-white/5">
+          <button type="button" onclick="useOfflineGuestMode()" class="text-[11px] text-slate-500 hover:text-slate-300 transition underline">
+            Continue in Offline Local Mode
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Step 2: 6-Digit OTP Verification Screen -->
+    <div id="auth-step-2" class="hidden p-6 space-y-4 text-center">
+      <div>
+        <span style="font-size:32px;">📬</span>
+        <h4 class="text-base font-bold text-white mt-1">Check Your Email</h4>
+        <p class="text-xs text-slate-400 mt-1">
+          We sent a 6-digit code to <strong id="auth-otp-recipient" class="text-purple-400 font-semibold"></strong>
+        </p>
+      </div>
+
+      <form id="auth-verify-form" onsubmit="handleVerifyOtp(event)" class="space-y-4">
+        <!-- 6-digit input -->
+        <div>
+          <input type="text" id="auth-otp-input" inputmode="numeric" autocomplete="one-time-code" placeholder="• • • • • •" maxlength="6" pattern="[0-9]{6}" required style="width:100%;max-width:220px;letter-spacing:10px;text-align:center;font-family:'Courier New',Courier,monospace;font-size:24px;font-weight:900;background:rgba(255,255,255,.05);border:2px solid rgba(139,92,246,.4);border-radius:14px;color:#f1f5f9;padding:12px;outline:none;" onfocus="this.style.borderColor='#a78bfa';this.style.boxShadow='0 0 15px rgba(124,58,237,0.3)';" onblur="this.style.borderColor='rgba(139,92,246,.4)';this.style.boxShadow='none';">
+        </div>
+
+        <!-- Timer & Resend -->
+        <div class="flex items-center justify-between text-xs text-slate-400 px-2">
+          <span id="auth-countdown" class="font-mono text-purple-400">Expires in 10:00</span>
+          <button type="button" id="auth-resend-btn" onclick="handleResendOtp()" class="text-slate-500 hover:text-purple-400 transition font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+            Resend Code
+          </button>
+        </div>
+
+        <!-- Error message container -->
+        <div id="auth-error-2" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center font-medium"></div>
+
+        <!-- Submit button -->
+        <button type="submit" id="auth-verify-btn" style="width:100%;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:12px;padding:12px;color:white;font-size:13px;font-weight:700;border:none;cursor:pointer;" class="glow-purple hover:opacity-90 transition">
+          Verify & Enter Dashboard 🚀
+        </button>
+
+        <!-- Back to Step 1 -->
+        <div class="pt-2 border-t border-white/5">
+          <button type="button" onclick="goToAuthStep1()" class="text-xs text-slate-400 hover:text-white transition">
+            ← Change Email / Back
+          </button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </div>
 
@@ -913,12 +968,18 @@ let trendChart=null, moodChart=null, selectedColor='#7c3aed';
 // ═══════════════════════════════════════════════════════
 // MULTI-USER AUTH & CLOUD SYNC ENGINE
 // ═══════════════════════════════════════════════════════
-const AUTH_TOKEN_KEY = 'AT_AUTH_TOKEN';
-const AUTH_USER_KEY = 'AT_AUTH_USER';
+// MULTI-USER COOKIE AUTH & CLOUD SYNC ENGINE
+// ═══════════════════════════════════════════════════════
 let currentUser = null;
 let currentAuthMode = 'login';
+let pendingAuthEmail = '';
+let pendingAuthUsername = '';
+let pendingAuthPurpose = 'login';
+let otpCountdownInterval = null;
+let resendCooldownInterval = null;
 let syncTimer = null;
 let isOfflineMode = false;
+window.CSRF_TOKEN = null;
 
 function getApiBase(){
   if(window.location.protocol.startsWith('http')){
@@ -978,38 +1039,22 @@ async function init(){
   renderQuote();
   setInterval(renderQuote, 30*60*1000);
 
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const cachedUser = localStorage.getItem(AUTH_USER_KEY);
-
-  if(cachedUser){
-    try { currentUser = JSON.parse(cachedUser); } catch(e){}
-  }
-
-  if(token){
-    await syncFromCloud(token);
-  } else {
-    loadLocal();
-    showPage('dashboard');
-    updateHeaderUserUI();
-    openAuthModal();
-  }
+  // Authenticate session via HttpOnly cookie
+  await checkSessionAndLoad();
 }
 
-async function syncFromCloud(token){
+async function checkSessionAndLoad(){
   updateSyncStatus('syncing', 'Connecting...');
   try {
     const res = await fetch(`${getApiBase()}/api/data`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      credentials: 'include'
     });
 
     if(res.ok){
       const data = await res.json();
       currentUser = data.user;
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+      window.CSRF_TOKEN = data.csrf_token;
       S = { ...S, ...data.data };
       if(!Array.isArray(S.habits)) S.habits = [];
       if(!Array.isArray(S.tasks)) S.tasks = [];
@@ -1021,19 +1066,18 @@ async function syncFromCloud(token){
       updateHeaderUserUI();
       closeModal('auth-modal');
       showPage('dashboard');
-      toast(`Welcome back, @${currentUser.username}! ☁️`);
+      toast(`Welcome, @${currentUser.username}! ☁️`);
       return true;
-    } else if(res.status === 401){
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(AUTH_USER_KEY);
+    } else {
       currentUser = null;
+      window.CSRF_TOKEN = null;
       loadLocal();
       updateHeaderUserUI();
       openAuthModal();
       return false;
     }
   } catch(err){
-    console.warn('Backend server unreachable, running offline local cache:', err);
+    console.warn('Backend server unreachable, running offline local cache mode:', err);
     isOfflineMode = true;
     loadLocal();
     updateHeaderUserUI();
@@ -1075,19 +1119,20 @@ function save(){
     localStorage.setItem(getStorageKey(), JSON.stringify(S));
   } catch(e){}
 
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if(!token || isOfflineMode) return;
+  if(!currentUser || isOfflineMode) return;
 
   clearTimeout(syncTimer);
   updateSyncStatus('syncing', 'Saving...');
   syncTimer = setTimeout(async () => {
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if(window.CSRF_TOKEN){
+        headers['X-CSRF-Token'] = window.CSRF_TOKEN;
+      }
       const res = await fetch(`${getApiBase()}/api/data`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        credentials: 'include',
+        headers,
         body: JSON.stringify(S)
       });
       if(res.ok){
@@ -1101,70 +1146,202 @@ function save(){
   }, 500);
 }
 
+// ═══════════════════════════════════════════════════════
+// TWO-STEP EMAIL OTP AUTH CONTROLLER
+// ═══════════════════════════════════════════════════════
 function openAuthModal(){
-  const errEl = document.getElementById('auth-error');
-  if(errEl) errEl.classList.add('hidden');
+  goToAuthStep1();
   openModal('auth-modal');
+}
+
+function goToAuthStep1(){
+  clearInterval(otpCountdownInterval);
+  clearInterval(resendCooldownInterval);
+  document.getElementById('auth-step-1').classList.remove('hidden');
+  document.getElementById('auth-step-2').classList.add('hidden');
+  const err1 = document.getElementById('auth-error-1');
+  const err2 = document.getElementById('auth-error-2');
+  if(err1) err1.classList.add('hidden');
+  if(err2) err2.classList.add('hidden');
 }
 
 function switchAuthTab(mode){
   currentAuthMode = mode;
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
-  const submitBtn = document.getElementById('auth-submit-btn');
+  const userField = document.getElementById('auth-username-field');
+  const loginField = document.getElementById('auth-login-field');
+  const emailField = document.getElementById('auth-email-field');
+  const submitBtn = document.getElementById('auth-send-btn');
   const tip = document.getElementById('auth-tip');
   const heading = document.getElementById('auth-heading');
-  const errEl = document.getElementById('auth-error');
+  const errEl = document.getElementById('auth-error-1');
   if(errEl) errEl.classList.add('hidden');
 
   if(mode === 'login'){
     tabLogin.className = 'flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition';
     tabRegister.className = 'flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition';
-    submitBtn.textContent = 'Log In to Dashboard 🚀';
-    tip.textContent = 'Enter your username & phone number to load your cloud habits.';
+    userField.classList.add('hidden');
+    loginField.classList.remove('hidden');
+    emailField.classList.add('hidden');
+    submitBtn.textContent = 'Send Login Code ✉️';
+    tip.textContent = 'Enter your username or registered email to receive your passwordless login code.';
     heading.textContent = 'Welcome Back';
   } else {
     tabRegister.className = 'flex-1 py-3 text-xs font-bold text-white border-b-2 border-purple-500 transition';
     tabLogin.className = 'flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition';
-    submitBtn.textContent = 'Enroll & Create Account ✨';
-    tip.textContent = 'Choose a username and enter your phone number to register.';
+    userField.classList.remove('hidden');
+    loginField.classList.add('hidden');
+    emailField.classList.remove('hidden');
+    submitBtn.textContent = 'Send Verification Code ✉️';
+    tip.textContent = 'Choose a username and provide your email to receive your enrollment code.';
     heading.textContent = 'Enroll New User';
   }
 }
 
-async function handleAuthSubmit(e){
-  e.preventDefault();
-  const username = document.getElementById('auth-username').value.trim();
-  const phone = document.getElementById('auth-phone').value.trim();
-  const errEl = document.getElementById('auth-error');
-  const submitBtn = document.getElementById('auth-submit-btn');
+async function handleSendOtp(e){
+  if(e) e.preventDefault();
+  const errEl = document.getElementById('auth-error-1');
+  const submitBtn = document.getElementById('auth-send-btn');
 
   errEl.classList.add('hidden');
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Authenticating... ⏳';
+  submitBtn.textContent = 'Sending Code... ⏳';
 
-  const endpoint = currentAuthMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+  const payload = { purpose: currentAuthMode };
+  if(currentAuthMode === 'signup'){
+    payload.username = document.getElementById('auth-username').value.trim();
+    payload.email = document.getElementById('auth-email').value.trim();
+    pendingAuthUsername = payload.username;
+    pendingAuthEmail = payload.email;
+  } else {
+    payload.login_id = document.getElementById('auth-login-id').value.trim();
+    pendingAuthUsername = '';
+    pendingAuthEmail = payload.login_id;
+  }
+  pendingAuthPurpose = currentAuthMode;
 
   try {
-    const res = await fetch(`${getApiBase()}${endpoint}`, {
+    const res = await fetch(`${getApiBase()}/api/auth/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, phone })
+      credentials: 'include',
+      body: JSON.stringify(payload)
     });
 
     const data = await res.json();
 
     if(!res.ok){
-      errEl.textContent = data.detail || data.error || 'Authentication failed.';
+      errEl.textContent = data.detail || 'Could not send verification code.';
       errEl.classList.remove('hidden');
       submitBtn.disabled = false;
-      submitBtn.textContent = currentAuthMode === 'login' ? 'Log In to Dashboard 🚀' : 'Enroll & Create Account ✨';
+      submitBtn.textContent = currentAuthMode === 'login' ? 'Send Login Code ✉️' : 'Send Verification Code ✉️';
       return;
     }
 
-    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
+    // Move to Step 2
+    if(data.email) pendingAuthEmail = data.email;
+    document.getElementById('auth-otp-recipient').textContent = pendingAuthEmail;
+    document.getElementById('auth-step-1').classList.add('hidden');
+    document.getElementById('auth-step-2').classList.remove('hidden');
+    document.getElementById('auth-otp-input').value = '';
+    document.getElementById('auth-otp-input').focus();
+
+    startOtpCountdown(10 * 60);
+    startResendCooldown(60);
+    toast('Verification code sent! Check your inbox 📬');
+
+  } catch(err){
+    errEl.textContent = 'Cannot connect to server. Ensure server is running or use Offline Mode.';
+    errEl.classList.remove('hidden');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = currentAuthMode === 'login' ? 'Send Login Code ✉️' : 'Send Verification Code ✉️';
+  }
+}
+
+function startOtpCountdown(seconds){
+  clearInterval(otpCountdownInterval);
+  let remaining = seconds;
+  const timerEl = document.getElementById('auth-countdown');
+
+  const update = () => {
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    timerEl.textContent = `Expires in ${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if(remaining <= 0){
+      clearInterval(otpCountdownInterval);
+      timerEl.textContent = 'Code expired. Please request a new one.';
+    }
+    remaining--;
+  };
+  update();
+  otpCountdownInterval = setInterval(update, 1000);
+}
+
+function startResendCooldown(seconds){
+  clearInterval(resendCooldownInterval);
+  let cooldown = seconds;
+  const resendBtn = document.getElementById('auth-resend-btn');
+  resendBtn.disabled = true;
+
+  const update = () => {
+    if(cooldown <= 0){
+      clearInterval(resendCooldownInterval);
+      resendBtn.disabled = false;
+      resendBtn.textContent = 'Resend Code';
+    } else {
+      resendBtn.textContent = `Resend in ${cooldown}s`;
+      cooldown--;
+    }
+  };
+  update();
+  resendCooldownInterval = setInterval(update, 1000);
+}
+
+function handleResendOtp(){
+  handleSendOtp(null);
+}
+
+async function handleVerifyOtp(e){
+  e.preventDefault();
+  const otpInput = document.getElementById('auth-otp-input');
+  const otp = otpInput.value.trim();
+  const errEl = document.getElementById('auth-error-2');
+  const submitBtn = document.getElementById('auth-verify-btn');
+
+  errEl.classList.add('hidden');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Verifying Code... ⏳';
+
+  const payload = {
+    email: pendingAuthEmail,
+    otp: otp,
+    purpose: pendingAuthPurpose,
+    username: pendingAuthUsername || undefined
+  };
+
+  try {
+    const res = await fetch(`${getApiBase()}/api/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+      errEl.textContent = data.detail || 'Verification failed. Please try again.';
+      errEl.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Verify & Enter Dashboard 🚀';
+      return;
+    }
+
+    // Success!
     currentUser = data.user;
+    window.CSRF_TOKEN = data.csrf_token;
     isOfflineMode = false;
 
     if(data.data){
@@ -1172,17 +1349,47 @@ async function handleAuthSubmit(e){
       localStorage.setItem(getStorageKey(), JSON.stringify(S));
     }
 
+    clearInterval(otpCountdownInterval);
+    clearInterval(resendCooldownInterval);
+
     updateHeaderUserUI();
     closeModal('auth-modal');
     showPage('dashboard');
-    toast(currentAuthMode === 'login' ? `Logged in as @${currentUser.username}! 🚀` : `Account created! Welcome @${currentUser.username}! ✨`);
+    toast(`Welcome, @${currentUser.username}! 🚀`);
 
   } catch(err){
-    errEl.textContent = 'Could not connect to backend server. Ensure server.py is running, or continue in Offline Mode.';
+    errEl.textContent = 'Connection error. Please try again.';
     errEl.classList.remove('hidden');
   } finally {
     submitBtn.disabled = false;
-    submitBtn.textContent = currentAuthMode === 'login' ? 'Log In to Dashboard 🚀' : 'Enroll & Create Account ✨';
+    submitBtn.textContent = 'Verify & Enter Dashboard 🚀';
+  }
+}
+
+function useOfflineGuestMode(){
+  isOfflineMode = true;
+  currentUser = null;
+  window.CSRF_TOKEN = null;
+  loadLocal();
+  updateHeaderUserUI();
+  closeModal('auth-modal');
+  showPage('dashboard');
+  toast('Offline Local Mode active ⚡');
+}
+
+async function logoutUser(){
+  if(confirm('Log out of AdatTracker?')){
+    try {
+      await fetch(`${getApiBase()}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch(e){}
+    currentUser = null;
+    window.CSRF_TOKEN = null;
+    updateHeaderUserUI();
+    openAuthModal();
+    toast('Logged out successfully 🚪');
   }
 }
 

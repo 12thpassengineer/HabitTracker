@@ -1,14 +1,26 @@
 version: '3.8'
 
 services:
-  habit-tracker:
-    build: .
+  adattracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: adattracker-pro:latest
     container_name: adattracker-pro
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
+      # In production behind Cloudflare Tunnel, bind port only to localhost: 127.0.0.1:8000:8000
       - "8000:8000"
     volumes:
-      - ./data:/app/data
-    environment:
-      - PORT=8000
-      - HOST=0.0.0.0
+      - adattracker_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  adattracker_data:
+    driver: local
