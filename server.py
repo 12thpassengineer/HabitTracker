@@ -43,6 +43,7 @@ from config import (
     MAX_OTP_ATTEMPTS,
     MAX_OTP_REQUESTS_EMAIL_15MIN,
     MAX_OTP_REQUESTS_IP_15MIN,
+    OTP_COOLDOWN_SECONDS,
     MAX_PAYLOAD_BYTES,
     STATIC_HTML_PATH,
     DB_PATH
@@ -181,10 +182,10 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
     """
     client_ip = security.get_client_ip(request)
 
-    # 1. IP Rate Limiting (5 requests per 15 minutes)
+    # 1. IP Rate Limiting
     ip_key = f"otp_ip:{client_ip}"
     allowed, retry_after = security.check_rate_limit(
-        ip_key, MAX_OTP_REQUESTS_IP_15MIN, window_seconds=900, cooldown_seconds=900
+        ip_key, MAX_OTP_REQUESTS_IP_15MIN, window_seconds=900, cooldown_seconds=OTP_COOLDOWN_SECONDS
     )
     if not allowed:
         raise HTTPException(
@@ -233,10 +234,10 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
                 "message": "If an account exists with this email or username, a verification code has been sent."
             }
 
-    # 2. Email Rate Limiting (3 requests per 15 minutes)
+    # 2. Email Rate Limiting
     email_key = f"otp_email:{target_email}"
     allowed_email, retry_after_email = security.check_rate_limit(
-        email_key, MAX_OTP_REQUESTS_EMAIL_15MIN, window_seconds=900, cooldown_seconds=900
+        email_key, MAX_OTP_REQUESTS_EMAIL_15MIN, window_seconds=900, cooldown_seconds=OTP_COOLDOWN_SECONDS
     )
     if not allowed_email:
         raise HTTPException(

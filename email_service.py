@@ -44,12 +44,17 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
         return True, "OTP logged to console."
 
     # 2. Resend API Backend
-    if EMAIL_BACKEND == "resend" and RESEND_API_KEY:
+    clean_resend_key = RESEND_API_KEY.split("#")[0].strip() if RESEND_API_KEY else ""
+    clean_from_email = FROM_EMAIL.split("#")[0].strip() if FROM_EMAIL else "onboarding@resend.dev"
+    clean_from_name = FROM_NAME.split("#")[0].strip() if FROM_NAME else "AdatTracker Pro"
+
+    if EMAIL_BACKEND == "resend" and clean_resend_key:
         try:
             html_body = generate_html_email(otp_code, username, purpose)
+            from_sender = f"{clean_from_name} <{clean_from_email}>" if clean_from_name else clean_from_email
             payload = {
-                "from": f"{FROM_NAME} <{FROM_EMAIL}>",
-                "to": [to_email],
+                "from": from_sender,
+                "to": [to_email.strip()],
                 "subject": subject,
                 "html": html_body
             }
@@ -57,7 +62,7 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
                 "https://api.resend.com/emails",
                 data=json.dumps(payload).encode("utf-8"),
                 headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Authorization": f"Bearer {clean_resend_key}",
                     "Content-Type": "application/json",
                     "User-Agent": "AdatTracker/2.0"
                 },
@@ -65,9 +70,16 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status in (200, 201):
+                    print(f"✅ OTP email dispatched via Resend to {to_email}")
                     return True, "Email dispatched via Resend."
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            print(f"❌ Resend API HTTP Error {e.code}: {err_body}")
+            print(f"🔑 [FALLBACK LOG] Verification OTP for {to_email} is: >>> {otp_code} <<<")
+            return False, f"Resend Error ({e.code}): {err_body}"
         except Exception as e:
             print(f"❌ Resend API error: {e}")
+            print(f"🔑 [FALLBACK LOG] Verification OTP for {to_email} is: >>> {otp_code} <<<")
             return False, f"Failed to send email via Resend: {str(e)}"
 
     # 3. Standard SMTP Backend (Gmail, Mailgun, Amazon SES, Brevo, Custom SMTP)
