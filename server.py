@@ -228,10 +228,11 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
             target_email = user["email"]
             target_username = user["username"]
         else:
-            # Anti-Enumeration: Return identical success message without generating OTP
+            # Anti-Enumeration: Return identical success response without generating OTP or leaking user existence
             return {
                 "success": True,
-                "message": "If an account exists with this email or username, a verification code has been sent."
+                "email": login_id,
+                "message": f"Verification code sent to {login_id}."
             }
 
     # 2. Email Rate Limiting
