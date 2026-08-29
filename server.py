@@ -137,16 +137,21 @@ app.add_middleware(
 # REQUEST SCHEMAS (Strict Pydantic Validation)
 # ═══════════════════════════════════════════════════════
 class SendOtpRequest(BaseModel):
-    purpose: str = Field(..., pattern="^(signup|login)$")
+    purpose: Optional[str] = Field("auth", pattern="^(signup|login|auth)$")
     email: Optional[str] = Field(None, max_length=100)
     username: Optional[str] = Field(None, max_length=30)
-    login_id: Optional[str] = Field(None, max_length=100)  # username or email for login
+    login_id: Optional[str] = Field(None, max_length=100)  # username or email
 
 class VerifyOtpRequest(BaseModel):
     email: str = Field(..., max_length=100)
     otp: str = Field(..., min_length=6, max_length=6, pattern="^[0-9]{6}$")
-    purpose: str = Field(..., pattern="^(signup|login)$")
+    purpose: Optional[str] = Field("auth", pattern="^(signup|login|auth)$")
     username: Optional[str] = Field(None, max_length=30)
+    phone: Optional[str] = Field(None, max_length=25)
+
+class UpdateProfileRequest(BaseModel):
+    username: Optional[str] = Field(None, min_length=2, max_length=30)
+    phone: Optional[str] = Field(None, max_length=25)
 
 # ═══════════════════════════════════════════════════════
 # AUTHENTICATION DEPENDENCY (Session Cookie Resolver)
@@ -204,43 +209,31 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
     target_email = ""
     target_username = ""
 
-    if req.purpose == "signup":
-        # Validate signup inputs
-        if not req.username or not req.email:
-            raise HTTPException(status_code=400, detail="Username and email are required for signup.")
+    # Unified Passwordless Flow (or explicit legacy signup/login)
+    input_str = (req.email or req.login_id or "").strip()
+    if not input_str:
+        raise HTTPException(status_code=400, detail="Please provide your email address.")
 
-        valid_u, clean_username = security.validate_username(req.username)
-        if not valid_u:
-            raise HTTPException(status_code=400, detail=clean_username)
-
-        valid_e, clean_email = security.validate_email(req.email)
+    if "@" in input_str:
+        valid_e, clean_email = security.validate_email(input_str)
         if not valid_e:
             raise HTTPException(status_code=400, detail=clean_email)
-
-        # Check if username or email is already registered
-        if db.get_user_by_username(clean_username):
-            raise HTTPException(status_code=409, detail="Username is already taken.")
-        if db.get_user_by_email(clean_email):
-            raise HTTPException(status_code=409, detail="Email is already registered. Please log in.")
-
         target_email = clean_email
-        target_username = clean_username
-
-    elif req.purpose == "login":
-        login_id = req.login_id or req.email or req.username
-        if not login_id:
-            raise HTTPException(status_code=400, detail="Username or email is required.")
-
-        user = db.get_user_by_login_id(login_id)
-        if user:
+        existing_user = db.get_user_by_email(clean_email)
+        if existing_user:
+            target_username = existing_user["username"]
+    else:
+        # User typed a username
+        user = db.get_user_by_username(input_str)
+        if user and user.get("email"):
             target_email = user["email"]
             target_username = user["username"]
         else:
-            # Anti-Enumeration: Return identical response schema — same status, same shape, no OTP generated
+            # Return anti-enumeration success
             return {
                 "success": True,
-                "email": login_id,
-                "message": f"Verification code sent to {login_id}."
+                "email": input_str,
+                "message": f"Verification code sent to {input_str}."
             }
 
     # 2. Email Rate Limiting (atomic)
@@ -259,11 +252,12 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
     otp_code = security.generate_otp_code()
     otp_hash = security.hash_otp_code(otp_code, target_email)
     expires_at = (datetime.datetime.utcnow() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES)).isoformat()
+    purpose_to_store = req.purpose or "auth"
 
-    db.store_otp(target_email, otp_hash, req.purpose, expires_at, client_ip)
+    db.store_otp(target_email, otp_hash, purpose_to_store, expires_at, client_ip)
 
     # 4. Dispatch Email
-    sent, err_msg = email_service.send_otp_email(target_email, otp_code, target_username, req.purpose)
+    sent, err_msg = email_service.send_otp_email(target_email, otp_code, target_username, purpose_to_store)
     if not sent:
         raise HTTPException(status_code=500, detail="Could not deliver verification email. Please try again.")
 
@@ -276,8 +270,10 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
 @app.post("/api/auth/verify-otp")
 async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Response):
     """
-    Step 2: Verifies the 6-digit OTP — purpose-matched, single-use, atomically consumed.
-    Creates account if signing up, establishes a secure HttpOnly session cookie.
+    Step 2: Verifies 6-digit OTP.
+    - If user exists: logs in immediately.
+    - If user is new: automatically sets up initial account and flags `is_new_user: true`
+      so frontend can present optional display name and phone number prompt.
     """
     client_ip = security.get_client_ip(request)
     user_agent = request.headers.get("user-agent", "Unknown")[:200]
@@ -286,12 +282,11 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
     if not valid_e:
         raise HTTPException(status_code=400, detail=clean_email)
 
-    # Fetch ONLY active OTPs matching both email AND purpose (P0 #8)
-    active_otps = db.get_active_otps_for_email(clean_email, purpose=req.purpose)
+    active_otps = db.get_active_otps_for_email(clean_email, purpose=req.purpose if req.purpose != "auth" else None)
     if not active_otps:
         raise HTTPException(status_code=400, detail="Invalid or expired verification code. Please request a new one.")
 
-    # Match against any active unexpired OTP for this email+purpose
+    # Match against active unexpired OTP
     matched_otp = None
     for otp_rec in active_otps:
         if otp_rec["attempts"] >= MAX_OTP_ATTEMPTS:
@@ -305,33 +300,37 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
         remaining = MAX_OTP_ATTEMPTS - (active_otps[0]["attempts"] + 1)
         raise HTTPException(status_code=400, detail=f"Incorrect verification code. {max(0, remaining)} attempt(s) remaining.")
 
-    # Atomically consume OTP — prevents race condition (P0 #9)
+    # Atomically consume OTP
     consumed = db.consume_otp_atomic(clean_email, matched_otp["id"])
     if not consumed:
         raise HTTPException(status_code=400, detail="Verification code was already used. Please request a new one.")
 
     # Resolve or create user account
-    if req.purpose == "signup":
-        if not req.username:
-            raise HTTPException(status_code=400, detail="Username is required for enrollment.")
-        valid_u, clean_username = security.validate_username(req.username)
-        if not valid_u:
-            raise HTTPException(status_code=400, detail=clean_username)
+    user = db.get_user_by_email(clean_email)
+    is_new_user = False
 
-        # Re-check uniqueness before creation
-        if db.get_user_by_username(clean_username) or db.get_user_by_email(clean_email):
-            user = db.get_user_by_email(clean_email)
-            if not user:
-                raise HTTPException(status_code=409, detail="Account already exists.")
-        else:
-            user = db.create_user(clean_username, clean_email)
-    else:
-        user = db.get_user_by_email(clean_email)
-        if not user:
-            raise HTTPException(status_code=404, detail="User account not found.")
+    if user:
         db.update_user_last_login(user["id"])
+    else:
+        # New User Registration
+        is_new_user = True
+        if req.username:
+            valid_u, clean_username = security.validate_username(req.username)
+            if not valid_u:
+                clean_username = clean_email.split("@")[0][:20]
+        else:
+            # Auto-derive friendly starter username from email
+            raw_prefix = clean_email.split("@")[0]
+            clean_prefix = "".join(c for c in raw_prefix if c.isalnum() or c == "_")[:20] or "user"
+            clean_username = clean_prefix
 
-    # Session Fixation Protection: Invalidate prior sessions for this user
+        # Ensure username uniqueness
+        if db.get_user_by_username(clean_username):
+            clean_username = f"{clean_username[:15]}_{security.generate_otp_code()[:4]}"
+
+        user = db.create_user(clean_username, clean_email, phone=req.phone)
+
+    # Session Fixation Protection: Invalidate prior sessions
     db.delete_all_user_sessions(user["id"])
 
     # Create new cryptographically secure session
@@ -356,15 +355,40 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
 
     return {
         "success": True,
+        "is_new_user": is_new_user,
         "user": {
             "id": user["id"],
             "username": user["username"],
             "email": user["email"],
+            "phone": user.get("phone"),
             "role": user["role"]
         },
         "csrf_token": csrf_token,
         "data": user_data
     }
+
+@app.post("/api/auth/profile")
+async def api_update_profile(
+    req: UpdateProfileRequest,
+    session: Dict[str, Any] = Depends(get_current_session),
+    x_csrf_token: Optional[str] = Header(None)
+):
+    """Allows an authenticated user to update their display name / username and optional phone number."""
+    if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+
+    user_id = session["user_id"]
+    clean_username = None
+    if req.username:
+        valid_u, clean_username = security.validate_username(req.username)
+        if not valid_u:
+            raise HTTPException(status_code=400, detail=clean_username)
+        existing = db.get_user_by_username(clean_username)
+        if existing and existing["id"] != user_id:
+            raise HTTPException(status_code=409, detail="Username is already taken.")
+
+    user = db.update_user_profile(user_id, username=clean_username, phone=req.phone)
+    return {"success": True, "user": user}
 
 @app.get("/api/auth/me")
 async def api_me(session: Dict[str, Any] = Depends(get_current_session)):
@@ -374,6 +398,7 @@ async def api_me(session: Dict[str, Any] = Depends(get_current_session)):
             "id": session["user_id"],
             "username": session["username"],
             "email": session["email"],
+            "phone": session.get("phone"),
             "role": session["role"]
         },
         "csrf_token": session["csrf_token"]

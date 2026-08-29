@@ -106,6 +106,7 @@ def init_db():
 
     ensure_user_column("email", "email TEXT COLLATE NOCASE")
     ensure_user_column("role", "role TEXT NOT NULL DEFAULT 'user'")
+    ensure_user_column("phone", "phone TEXT")
     ensure_user_column("is_verified", "is_verified INTEGER NOT NULL DEFAULT 1")
 
     # Legacy pre-Email-OTP databases may contain users whose email is NULL.
@@ -146,7 +147,7 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, username, email, role, is_verified, created_at, last_login FROM users WHERE id = ?",
+        "SELECT id, username, email, phone, role, is_verified, created_at, last_login FROM users WHERE id = ?",
         (user_id,)
     )
     row = cursor.fetchone()
@@ -157,7 +158,7 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, username, email, role, is_verified, created_at, last_login FROM users WHERE email = ?",
+        "SELECT id, username, email, phone, role, is_verified, created_at, last_login FROM users WHERE email = ?",
         (email.strip().lower(),)
     )
     row = cursor.fetchone()
@@ -168,7 +169,7 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, username, email, role, is_verified, created_at, last_login FROM users WHERE username = ?",
+        "SELECT id, username, email, phone, role, is_verified, created_at, last_login FROM users WHERE username = ?",
         (username.strip().lower(),)
     )
     row = cursor.fetchone()
@@ -181,27 +182,28 @@ def get_user_by_login_id(login_id: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, username, email, role, is_verified, created_at, last_login FROM users WHERE username = ? OR email = ?",
+        "SELECT id, username, email, phone, role, is_verified, created_at, last_login FROM users WHERE username = ? OR email = ?",
         (clean_id, clean_id)
     )
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
 
-def create_user(username: str, email: str, role: str = "user") -> Dict[str, Any]:
+def create_user(username: str, email: str, role: str = "user", phone: Optional[str] = None) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
     user_id = f"usr_{uuid.uuid4().hex[:12]}"
     now_iso = datetime.datetime.utcnow().isoformat()
     clean_username = username.strip().lower()
     clean_email = email.strip().lower()
+    clean_phone = phone.strip() if phone else None
 
     cursor.execute(
         """
-        INSERT INTO users (id, username, email, role, is_verified, created_at, last_login)
-        VALUES (?, ?, ?, ?, 1, ?, ?)
+        INSERT INTO users (id, username, email, phone, role, is_verified, created_at, last_login)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
         """,
-        (user_id, clean_username, clean_email, role, now_iso, now_iso)
+        (user_id, clean_username, clean_email, clean_phone, role, now_iso, now_iso)
     )
 
     # Initialize starter habit template
@@ -218,11 +220,35 @@ def create_user(username: str, email: str, role: str = "user") -> Dict[str, Any]
         "id": user_id,
         "username": clean_username,
         "email": clean_email,
+        "phone": clean_phone,
         "role": role,
         "is_verified": 1,
         "created_at": now_iso,
         "last_login": now_iso
     }
+
+def update_user_profile(user_id: str, username: Optional[str] = None, phone: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    updates = []
+    params = []
+    if username:
+        clean_username = username.strip().lower()
+        updates.append("username = ?")
+        params.append(clean_username)
+    if phone is not None:
+        clean_phone = phone.strip() if phone else None
+        updates.append("phone = ?")
+        params.append(clean_phone)
+    if not updates:
+        conn.close()
+        return get_user_by_id(user_id)
+
+    params.append(user_id)
+    cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", tuple(params))
+    conn.commit()
+    conn.close()
+    return get_user_by_id(user_id)
 
 def update_user_last_login(user_id: str):
     conn = get_db_connection()
@@ -364,7 +390,7 @@ def get_session(session_id: str) -> Optional[Dict[str, Any]]:
     cursor.execute(
         """
         SELECT s.id as session_id, s.user_id, s.csrf_token, s.expires_at,
-               u.username, u.email, u.role, u.is_verified, u.created_at, u.last_login
+               u.username, u.email, u.phone, u.role, u.is_verified, u.created_at, u.last_login
         FROM sessions s
         JOIN users u ON s.user_id = u.id
         WHERE s.id = ? AND s.expires_at > ?
