@@ -1,7 +1,7 @@
 """
-Habit Codex Pro - Multi-User Cloud & Self-Hosted Backend Server
+AdatTracker Pro - Multi-User Cloud & Self-Hosted Backend Server
 Supports both FastAPI (if installed) and Built-in Python Standard Library (Zero Dependencies).
-Database: SQLite (stored in ./data/habit_codex.db)
+Database: SQLite (stored in ./data/adattracker.db)
 """
 
 import os
@@ -17,7 +17,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "habit_codex.db"
+DB_PATH = DATA_DIR / "adattracker.db"
 STATIC_HTML_PATH = BASE_DIR / "habit_tracker.html"
 if not STATIC_HTML_PATH.exists():
     STATIC_HTML_PATH = BASE_DIR / "frontend" / "index.html"
@@ -127,7 +127,7 @@ def create_default_user_data():
         "notes": [
             {
                 "id": f"id_{uuid.uuid4().hex[:8]}",
-                "title": "💡 Welcome to Habit Codex",
+                "title": "💡 Welcome to AdatTracker",
                 "content": "Your habits, tasks, and sticky notes are now securely synced to your cloud database!\n\nAccess this dashboard from any mobile or desktop device.",
                 "color": "yellow",
                 "pinned": True,
@@ -165,7 +165,7 @@ def register_user(username: str, phone: str):
         return {"error": "Username already exists. Please log in instead.", "status": 409}
 
     user_id = f"usr_{uuid.uuid4().hex[:12]}"
-    token = f"hct_{uuid.uuid4().hex}"
+    token = f"at_{uuid.uuid4().hex}"
     now_iso = datetime.datetime.utcnow().isoformat()
 
     cursor.execute(
@@ -214,7 +214,7 @@ def login_user(username: str, phone: str):
         return {"error": "Invalid phone number for this username.", "status": 401}
 
     # Generate a fresh token or use existing token
-    new_token = f"hct_{uuid.uuid4().hex}"
+    new_token = f"at_{uuid.uuid4().hex}"
     now_iso = datetime.datetime.utcnow().isoformat()
 
     cursor.execute("UPDATE users SET token = ?, last_login = ? WHERE id = ?", (new_token, now_iso, row["id"]))
@@ -301,7 +301,7 @@ def run_fastapi_app(port=8000, host="0.0.0.0"):
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
 
-    app = FastAPI(title="Habit Codex Pro Server", version="2.0.0")
+    app = FastAPI(title="AdatTracker Pro Server", version="2.0.0")
 
     app.add_middleware(
         CORSMiddleware,
@@ -323,11 +323,11 @@ def run_fastapi_app(port=8000, host="0.0.0.0"):
     def index():
         if STATIC_HTML_PATH.exists():
             return FileResponse(str(STATIC_HTML_PATH))
-        return HTMLResponse("<h1>Habit Codex Pro</h1><p>Frontend file habit_tracker.html not found.</p>")
+        return HTMLResponse("<h1>AdatTracker Pro</h1><p>Frontend file habit_tracker.html not found.</p>")
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "app": "Habit Codex Pro", "version": "2.0.0"}
+        return {"status": "ok", "app": "AdatTracker Pro", "version": "2.0.0"}
 
     @app.post("/api/auth/register")
     def api_register(req: AuthRequest):
@@ -382,7 +382,7 @@ def run_fastapi_app(port=8000, host="0.0.0.0"):
         users = get_all_users_summary()
         return {"count": len(users), "users": users}
 
-    print(f"🚀 Habit Codex Pro FastAPI running on http://{host}:{port}")
+    print(f"🚀 AdatTracker Pro FastAPI running on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port)
 
 # ═══════════════════════════════════════════════════════
@@ -528,7 +528,7 @@ def run_stdlib_server(port=8000, host="0.0.0.0"):
             self._send_error("Not found", 404)
 
     server = ThreadedHTTPServer((host, port), HabitHandler)
-    print(f"🚀 Habit Codex Pro Standard Server running on http://{host}:{port}")
+    print(f"🚀 AdatTracker Pro Standard Server running on http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#050508">
-<title>Habit Codex Pro</title>
+<title>AdatTracker Pro</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -251,8 +251,8 @@ tr.habit-row-drag.drag-over {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
       <div class="hidden sm:block">
-        <h1 class="text-sm font-bold text-white leading-none">Habit Codex</h1>
-        <p class="text-[10px]" style="color:#6b7280;">PRO — Level up daily</p>
+        <h1 class="text-sm font-bold text-white leading-none">AdatTracker</h1>
+        <p class="text-[10px]" style="color:#6b7280;">PRO — Build daily rituals</p>
       </div>
     </div>
 
@@ -610,7 +610,7 @@ tr.habit-row-drag.drag-over {
 
       <!-- App info -->
       <div class="glass rounded-2xl p-4 text-center" style="color:#374151;">
-        <p style="font-size:12px;">Habit Codex Pro — v2.0</p>
+        <p style="font-size:12px;">AdatTracker Pro — v2.0</p>
         <p style="font-size:11px;margin-top:4px;">All data stored locally on your device</p>
       </div>
     </div>
@@ -709,7 +709,7 @@ tr.habit-row-drag.drag-over {
       <div style="width:48px;height:48px;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:14px;margin:0 auto 12px;" class="flex items-center justify-center glow-purple">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
-      <h3 class="text-lg font-black text-white" id="auth-heading">Habit Codex Pro</h3>
+      <h3 class="text-lg font-black text-white" id="auth-heading">AdatTracker Pro</h3>
       <p class="text-xs text-slate-400 mt-1" id="auth-subheading">Multi-User Cloud & Self-Hosted Database</p>
       
       <!-- Optional close button if already logged in -->
@@ -875,7 +875,7 @@ tr.habit-row-drag.drag-over {
 // ═══════════════════════════════════════════════════════
 // STATE & CONSTANTS
 // ═══════════════════════════════════════════════════════
-const KEY = 'HC_PRO_V2';
+const KEY = 'AT_PRO_V2';
 let S = {
   habits:[],tasks:[],notes:[],
   viewYear:new Date().getFullYear(),
@@ -913,8 +913,8 @@ let trendChart=null, moodChart=null, selectedColor='#7c3aed';
 // ═══════════════════════════════════════════════════════
 // MULTI-USER AUTH & CLOUD SYNC ENGINE
 // ═══════════════════════════════════════════════════════
-const AUTH_TOKEN_KEY = 'HC_AUTH_TOKEN';
-const AUTH_USER_KEY = 'HC_AUTH_USER';
+const AUTH_TOKEN_KEY = 'AT_AUTH_TOKEN';
+const AUTH_USER_KEY = 'AT_AUTH_USER';
 let currentUser = null;
 let currentAuthMode = 'login';
 let syncTimer = null;
@@ -1197,7 +1197,7 @@ function useOfflineGuestMode(){
 }
 
 async function logoutUser(){
-  if(confirm('Log out of Habit Codex?')){
+  if(confirm('Log out of AdatTracker?')){
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if(token){
       try {
@@ -2038,7 +2038,7 @@ function exportData(){
   const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='habit_codex_backup_'+todayK()+'.json';
+  a.download='adattracker_backup_'+todayK()+'.json';
   a.click();
   toast('Backup downloaded! 📦');
 }

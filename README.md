@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ Habit Codex Pro
+# ⚡ AdatTracker Pro
 
 **A Minimal, Self-Hostable, Multi-User Habit Tracker & Sticky Notes Dashboard.**
 *Built for OLED dark-mode enthusiasts, homelab owners, and high performers.*
@@ -20,13 +20,13 @@
 
 ## 📸 Overview
 
-Habit Codex Pro is a self-hostable web application that helps individuals and teams maintain discipline, build unbreakable daily streaks, and manage quick thoughts with sticky notes.
+AdatTracker Pro is a self-hostable web application that helps individuals and teams maintain discipline, build unbreakable daily streaks, and manage quick thoughts with sticky notes.
 
 It runs with **zero external database dependencies** (SQLite embedded), uses less than **35 MB of RAM**, and can be self-hosted on a **Raspberry Pi, Proxmox LXC container, Oracle Cloud Free Tier VPS, or Docker**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  HABIT CODEX PRO — FULLSCREEN DESKTOP DASHBOARD                            │
+│  AdatTracker Pro — FULLSCREEN DESKTOP DASHBOARD                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  [🎯 Today: 100%]   [🔥 Top Streak: 18d]   [📈 Month: 94%]   [🏆 Score: 14.8] │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -56,7 +56,7 @@ It runs with **zero external database dependencies** (SQLite embedded), uses les
 
 ### 1. One-Line Universal Install (Linux / Raspberry Pi / Proxmox)
 
-Run this single command on your server to install and launch Habit Codex as a 24/7 background service:
+Run this single command on your server to install and launch AdatTracker as a 24/7 background service:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/12thpassengineer/HabitTracker/main/install.sh | bash
@@ -80,7 +80,7 @@ Access the application at `http://localhost:8000`.
 
 ### 3. Native Python (Zero External Dependencies)
 
-Because Habit Codex contains a built-in standard library fallback, you can run it anywhere with pure Python 3:
+Because AdatTracker contains a built-in standard library fallback, you can run it anywhere with pure Python 3:
 
 ```bash
 git clone https://github.com/12thpassengineer/HabitTracker.git
@@ -94,7 +94,7 @@ python3 server.py
 
 ## 🔐 Multi-User Architecture
 
-Habit Codex Pro separates user data at the database level:
+AdatTracker Pro separates user data at the database level:
 
 ```mermaid
 flowchart TD
@@ -108,7 +108,7 @@ flowchart TD
         Sync["REST Data Sync API"]
     end
 
-    subgraph Database["SQLite Database (data/habit_codex.db)"]
+    subgraph Database["SQLite Database (data/adattracker.db)"]
         T1[("users Table")]
         T2[("user_data Table (Alex's habits & notes)")]
         T3[("user_data Table (Sarah's habits & notes)")]
@@ -124,7 +124,7 @@ flowchart TD
 
 - **Login**: Verifies that the entered `username` matches the stored `phone number`.
 - **Enrollment**: New users click **"Enroll New User"** to create a fresh profile.
-- **Storage**: All user profiles, habits, and notes are saved to a single file at `./data/habit_codex.db`.
+- **Storage**: All user profiles, habits, and notes are saved to a single file at `./data/adattracker.db`.
 
 ---
 
@@ -178,10 +178,10 @@ curl -sSL https://raw.githubusercontent.com/12thpassengineer/HabitTracker/main/i
 All habits, notes, and user accounts live in a single SQLite file:
 ```bash
 # Backup
-cp data/habit_codex.db ~/backup_habit_codex_$(date +%F).db
+cp data/adattracker.db ~/backup_adattracker_$(date +%F).db
 
 # Restore
-cp ~/backup_habit_codex_*.db data/habit_codex.db
+cp ~/backup_adattracker_*.db data/adattracker.db
 ```
 
 ---

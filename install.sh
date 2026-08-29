@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-#  Habit Codex Pro - Universal 1-Click Installer
+#  AdatTracker Pro - Universal 1-Click Installer
 #  Compatible with: Raspberry Pi, Proxmox LXC, Ubuntu, Debian, CentOS, macOS
 # ==============================================================================
 
@@ -77,7 +77,7 @@ echo -e "\n${YELLOW}3/4 Configuring Systemd Service for 24/7 Background Startup.
 if [ -d "/etc/systemd/system" ]; then
     cat <<EOF | $SUDO tee /etc/systemd/system/habit-tracker.service >/dev/null
 [Unit]
-Description=Habit Codex Pro Multi-User Application
+Description=AdatTracker Pro Multi-User Application
 After=network.target
 
 [Service]
@@ -103,11 +103,11 @@ fi
 # 4. Display Access Details
 IP_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 echo -e "\n${GREEN}==============================================================================${NC}"
-echo -e "${GREEN}🎉 Habit Codex Pro successfully installed and running!${NC}"
+echo -e "${GREEN}🎉 AdatTracker Pro successfully installed and running!${NC}"
 echo -e "${GREEN}==============================================================================${NC}"
 echo -e "👉 ${CYAN}Local Access URL:${NC}   http://${IP_ADDR}:${PORT}"
 echo -e "👉 ${CYAN}Localhost URL:${NC}      http://localhost:${PORT}"
-echo -e "👉 ${CYAN}Database Path:${NC}      ${INSTALL_DIR}/data/habit_codex.db"
+echo -e "👉 ${CYAN}Database Path:${NC}      ${INSTALL_DIR}/data/adattracker.db"
 echo -e "👉 ${CYAN}Service Status:${NC}     sudo systemctl status habit-tracker"
 echo -e "👉 ${CYAN}Service Restart:${NC}    sudo systemctl restart habit-tracker"
 echo -e "${GREEN}==============================================================================${NC}"

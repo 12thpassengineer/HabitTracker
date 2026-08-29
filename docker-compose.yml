@@ -3,7 +3,7 @@ version: '3.8'
 services:
   habit-tracker:
     build: .
-    container_name: habit-codex-pro
+    container_name: adattracker-pro
     restart: unless-stopped
     ports:
       - "8000:8000"
