@@ -227,6 +227,8 @@ def update_user_last_login(user_id: str):
 def store_otp(email: str, otp_hash: str, purpose: str, expires_at_iso: str, ip_address: Optional[str] = None):
     conn = get_db_connection()
     cursor = conn.cursor()
+    clean_email = email.strip().lower()
+    now_iso = datetime.datetime.utcnow().isoformat()
     cursor.execute(
         """
         INSERT INTO email_otps (email, otp_hash, purpose, attempts, expires_at, used, ip_address, created_at)
