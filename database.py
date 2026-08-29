@@ -92,18 +92,13 @@ def init_db():
     );
     """)
 
-    # Indexes for O(1) Lookups
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_otps_email_used ON email_otps(email, used, expires_at);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);")
-
-    # Safe Schema Migrations (for backwards compatibility with older installs)
+    # ── Safe Schema Migrations (MUST run BEFORE indexes on new columns) ──────
+    # These ALTER TABLE statements are safe to re-run — they fail silently if
+    # the column already exists (i.e. fresh installs with the new schema).
     try:
-        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE COLLATE NOCASE;")
+        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT COLLATE NOCASE;")
     except sqlite3.OperationalError:
-        pass
+        pass  # Column already exists — fresh install or already migrated
 
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
@@ -114,6 +109,21 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 1;")
     except sqlite3.OperationalError:
         pass
+
+    # Remove the old phone column index if it exists from a prior version
+    try:
+        cursor.execute("DROP INDEX IF EXISTS idx_users_phone;")
+    except sqlite3.OperationalError:
+        pass
+
+    conn.commit()  # Commit migrations before creating indexes
+
+    # ── Indexes for O(1) lookups (created AFTER migrations ensure columns exist) ──
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_otps_email_used ON email_otps(email, used, expires_at);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);")
 
     conn.commit()
     conn.close()
