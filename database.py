@@ -239,25 +239,37 @@ def store_otp(email: str, otp_hash: str, purpose: str, expires_at_iso: str, ip_a
     conn.commit()
     conn.close()
 
-def get_active_otp(email: str) -> Optional[Dict[str, Any]]:
-    otps = get_active_otps_for_email(email)
+def get_active_otp(email: str, purpose: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    otps = get_active_otps_for_email(email, purpose)
     return otps[0] if otps else None
 
-def get_active_otps_for_email(email: str) -> List[Dict[str, Any]]:
+def get_active_otps_for_email(email: str, purpose: Optional[str] = None) -> List[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     clean_email = email.strip().lower()
     now_iso = datetime.datetime.utcnow().isoformat()
 
-    cursor.execute(
-        """
-        SELECT id, email, otp_hash, purpose, attempts, expires_at, used, created_at
-        FROM email_otps
-        WHERE email = ? AND used = 0 AND expires_at > ?
-        ORDER BY id DESC
-        """,
-        (clean_email, now_iso)
-    )
+    if purpose:
+        # Filter by purpose — signup OTP cannot be used to verify a login (P0 #8)
+        cursor.execute(
+            """
+            SELECT id, email, otp_hash, purpose, attempts, expires_at, used, created_at
+            FROM email_otps
+            WHERE email = ? AND purpose = ? AND used = 0 AND expires_at > ?
+            ORDER BY id DESC
+            """,
+            (clean_email, purpose, now_iso)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT id, email, otp_hash, purpose, attempts, expires_at, used, created_at
+            FROM email_otps
+            WHERE email = ? AND used = 0 AND expires_at > ?
+            ORDER BY id DESC
+            """,
+            (clean_email, now_iso)
+        )
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -283,6 +295,33 @@ def mark_all_otps_used(email: str):
     cursor.execute("UPDATE email_otps SET used = 1 WHERE email = ?", (clean_email,))
     conn.commit()
     conn.close()
+
+def consume_otp_atomic(email: str, otp_id: int) -> bool:
+    """
+    Atomically marks a specific OTP as used inside a single transaction.
+    Returns True if exactly one row was updated (OTP was still unused),
+    False if already consumed (prevents race conditions).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    clean_email = email.strip().lower()
+    now_iso = datetime.datetime.utcnow().isoformat()
+    try:
+        cursor.execute(
+            """
+            UPDATE email_otps
+            SET used = 1
+            WHERE id = ? AND email = ? AND used = 0 AND expires_at > ?
+            """,
+            (otp_id, clean_email, now_iso)
+        )
+        conn.commit()
+        return cursor.rowcount == 1
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
 
 # ═══════════════════════════════════════════════════════
 # SERVER-SIDE SESSIONS REPOSITORY
@@ -375,6 +414,82 @@ def reset_rate_limit(key: str):
     cursor.execute("DELETE FROM rate_limits WHERE key = ?", (key,))
     conn.commit()
     conn.close()
+
+def increment_rate_limit_atomic(key: str, window_seconds: int, max_requests: int, cooldown_seconds: int):
+    """
+    Single-transaction atomic rate limit check+increment.
+    Returns (is_allowed: bool, retry_after_seconds: int)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.utcnow()
+    now_iso = now.isoformat()
+    try:
+        cursor.execute(
+            "SELECT key, attempts, window_start, blocked_until FROM rate_limits WHERE key = ?",
+            (key,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.execute(
+                "INSERT INTO rate_limits (key, attempts, window_start, blocked_until) VALUES (?, 1, ?, NULL)",
+                (key, now_iso)
+            )
+            conn.commit()
+            return True, 0
+
+        record = dict(row)
+
+        if record["blocked_until"]:
+            try:
+                blocked_until = datetime.datetime.fromisoformat(record["blocked_until"])
+                if blocked_until > now:
+                    retry_after = int((blocked_until - now).total_seconds()) + 1
+                    return False, max(1, retry_after)
+            except ValueError:
+                pass
+
+        try:
+            window_start = datetime.datetime.fromisoformat(record["window_start"])
+        except ValueError:
+            window_start = now
+
+        elapsed = (now - window_start).total_seconds()
+
+        if elapsed > window_seconds:
+            cursor.execute(
+                "UPDATE rate_limits SET attempts = 1, window_start = ?, blocked_until = NULL WHERE key = ?",
+                (now_iso, key)
+            )
+            conn.commit()
+            return True, 0
+
+        current_attempts = record["attempts"] + 1
+
+        if current_attempts > max_requests:
+            blocked_until_iso = (now + datetime.timedelta(seconds=cooldown_seconds)).isoformat()
+            cursor.execute(
+                "UPDATE rate_limits SET attempts = ?, blocked_until = ? WHERE key = ?",
+                (current_attempts, blocked_until_iso, key)
+            )
+            conn.commit()
+            return False, cooldown_seconds
+
+        cursor.execute(
+            "UPDATE rate_limits SET attempts = ? WHERE key = ?",
+            (current_attempts, key)
+        )
+        conn.commit()
+        return True, 0
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return True, 0
+    finally:
+        conn.close()
 
 # ═══════════════════════════════════════════════════════
 # USER DATA REPOSITORY

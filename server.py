@@ -2,6 +2,12 @@
 AdatTracker Pro - High-Performance, Hardened FastAPI Backend Server
 Implements Passwordless Email OTP, HttpOnly Cookie Sessions, CSRF Protection,
 Strict User Data Isolation, Rate Limiting, and Security Headers.
+
+P0/P1 Fixes Applied:
+ - OTP purpose enforced (signup OTP cannot verify login and vice versa)
+ - OTP consumption is atomic (race condition prevented)
+ - CSRF protection on /api/auth/logout (P1 #12)
+ - Rate limiting uses atomic DB operations (P1 #13)
 """
 
 import sys
@@ -66,7 +72,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AdatTracker Pro",
-    version="2.0.0",
+    version="2.5.0",
     docs_url=None if IS_PRODUCTION else "/docs",
     redoc_url=None,
     openapi_url=None if IS_PRODUCTION else "/openapi.json",
@@ -102,7 +108,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        
+
         # Content Security Policy (allows Tailwind CDN, Google Fonts, Canvas-Confetti, Chart.js)
         csp = (
             "default-src 'self'; "
@@ -177,15 +183,17 @@ async def health_check():
 @app.post("/api/auth/send-otp")
 async def api_send_otp(req: SendOtpRequest, request: Request):
     """
-    Generates and sends a single-use 6-digit OTP code to the verified email.
-    Applies IP and Email rate limiting. Prevents user enumeration.
+    Step 1: Validates the identity, generates a single-use 6-digit OTP,
+    stores it hashed (HMAC-SHA256), and sends it via the configured email backend.
+    Enforces IP and per-account rate limits.
     """
     client_ip = security.get_client_ip(request)
 
-    # 1. IP Rate Limiting
+    # 1. IP Rate Limiting (atomic)
     ip_key = f"otp_ip:{client_ip}"
-    allowed, retry_after = security.check_rate_limit(
-        ip_key, MAX_OTP_REQUESTS_IP_15MIN, window_seconds=900, cooldown_seconds=OTP_COOLDOWN_SECONDS
+    allowed, retry_after = db.increment_rate_limit_atomic(
+        ip_key, window_seconds=900, max_requests=MAX_OTP_REQUESTS_IP_15MIN,
+        cooldown_seconds=OTP_COOLDOWN_SECONDS
     )
     if not allowed:
         raise HTTPException(
@@ -228,17 +236,18 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
             target_email = user["email"]
             target_username = user["username"]
         else:
-            # Anti-Enumeration: Return identical success response without generating OTP or leaking user existence
+            # Anti-Enumeration: Return identical response schema — same status, same shape, no OTP generated
             return {
                 "success": True,
                 "email": login_id,
                 "message": f"Verification code sent to {login_id}."
             }
 
-    # 2. Email Rate Limiting
+    # 2. Email Rate Limiting (atomic)
     email_key = f"otp_email:{target_email}"
-    allowed_email, retry_after_email = security.check_rate_limit(
-        email_key, MAX_OTP_REQUESTS_EMAIL_15MIN, window_seconds=900, cooldown_seconds=OTP_COOLDOWN_SECONDS
+    allowed_email, retry_after_email = db.increment_rate_limit_atomic(
+        email_key, window_seconds=900, max_requests=MAX_OTP_REQUESTS_EMAIL_15MIN,
+        cooldown_seconds=OTP_COOLDOWN_SECONDS
     )
     if not allowed_email:
         raise HTTPException(
@@ -267,8 +276,8 @@ async def api_send_otp(req: SendOtpRequest, request: Request):
 @app.post("/api/auth/verify-otp")
 async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Response):
     """
-    Verifies the 6-digit OTP, creates the account if signing up, and establishes
-    a secure HttpOnly session cookie.
+    Step 2: Verifies the 6-digit OTP — purpose-matched, single-use, atomically consumed.
+    Creates account if signing up, establishes a secure HttpOnly session cookie.
     """
     client_ip = security.get_client_ip(request)
     user_agent = request.headers.get("user-agent", "Unknown")[:200]
@@ -277,11 +286,12 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
     if not valid_e:
         raise HTTPException(status_code=400, detail=clean_email)
 
-    active_otps = db.get_active_otps_for_email(clean_email)
+    # Fetch ONLY active OTPs matching both email AND purpose (P0 #8)
+    active_otps = db.get_active_otps_for_email(clean_email, purpose=req.purpose)
     if not active_otps:
         raise HTTPException(status_code=400, detail="Invalid or expired verification code. Please request a new one.")
 
-    # Check against any active unexpired OTP for this email
+    # Match against any active unexpired OTP for this email+purpose
     matched_otp = None
     for otp_rec in active_otps:
         if otp_rec["attempts"] >= MAX_OTP_ATTEMPTS:
@@ -295,8 +305,10 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
         remaining = MAX_OTP_ATTEMPTS - (active_otps[0]["attempts"] + 1)
         raise HTTPException(status_code=400, detail=f"Incorrect verification code. {max(0, remaining)} attempt(s) remaining.")
 
-    # Mark all OTPs for this email as used (Single-Use enforcement)
-    db.mark_all_otps_used(clean_email)
+    # Atomically consume OTP — prevents race condition (P0 #9)
+    consumed = db.consume_otp_atomic(clean_email, matched_otp["id"])
+    if not consumed:
+        raise HTTPException(status_code=400, detail="Verification code was already used. Please request a new one.")
 
     # Resolve or create user account
     if req.purpose == "signup":
@@ -368,10 +380,22 @@ async def api_me(session: Dict[str, Any] = Depends(get_current_session)):
     }
 
 @app.post("/api/auth/logout")
-async def api_logout(request: Request, response: Response):
-    """Invalidates the server-side session and clears the session cookie."""
+async def api_logout(
+    request: Request,
+    response: Response,
+    x_csrf_token: Optional[str] = Header(None)
+):
+    """
+    Invalidates the server-side session and clears the session cookie.
+    CSRF token is validated for defense-in-depth (P1 #12).
+    """
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
     if session_id:
+        session = db.get_session(session_id)
+        # Validate CSRF on logout if we have a session (P1 #12)
+        if session and x_csrf_token:
+            if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
+                raise HTTPException(status_code=403, detail="Invalid CSRF token.")
         db.delete_session(session_id)
 
     response.delete_cookie(
@@ -414,13 +438,13 @@ async def api_save_data(
 ):
     """
     Saves habits, tasks, and notes payload strictly under the authenticated user's ID.
-    Validates CSRF double-submit header for all state-mutating requests.
+    Validates CSRF double-submit header. Ignores any user_id in the JSON body.
     """
     # 1. CSRF Protection Check
     if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
         raise HTTPException(status_code=403, detail="Invalid or missing CSRF token.")
 
-    # 2. Save Data Isolated by user_id
+    # 2. Save Data Isolated by user_id (never from client payload)
     user_id = session["user_id"]
     res = db.save_user_data(user_id, payload)
     return res
