@@ -275,24 +275,26 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
     if not valid_e:
         raise HTTPException(status_code=400, detail=clean_email)
 
-    active_otp = db.get_active_otp(clean_email)
-    if not active_otp:
+    active_otps = db.get_active_otps_for_email(clean_email)
+    if not active_otps:
         raise HTTPException(status_code=400, detail="Invalid or expired verification code. Please request a new one.")
 
-    # Check attempt limit on this OTP
-    if active_otp["attempts"] >= MAX_OTP_ATTEMPTS:
-        db.mark_otp_used(active_otp["id"])
-        raise HTTPException(status_code=400, detail="Too many failed attempts. This code has expired. Request a new one.")
+    # Check against any active unexpired OTP for this email
+    matched_otp = None
+    for otp_rec in active_otps:
+        if otp_rec["attempts"] >= MAX_OTP_ATTEMPTS:
+            continue
+        if security.verify_otp_code(req.otp, clean_email, otp_rec["otp_hash"]):
+            matched_otp = otp_rec
+            break
 
-    # Verify OTP Hash in constant time
-    is_valid = security.verify_otp_code(req.otp, clean_email, active_otp["otp_hash"])
-    if not is_valid:
-        db.increment_otp_attempts(active_otp["id"])
-        remaining = MAX_OTP_ATTEMPTS - (active_otp["attempts"] + 1)
-        raise HTTPException(status_code=400, detail=f"Incorrect verification code. {remaining} attempt(s) remaining.")
+    if not matched_otp:
+        db.increment_otp_attempts(active_otps[0]["id"])
+        remaining = MAX_OTP_ATTEMPTS - (active_otps[0]["attempts"] + 1)
+        raise HTTPException(status_code=400, detail=f"Incorrect verification code. {max(0, remaining)} attempt(s) remaining.")
 
-    # Mark OTP as used immediately (Single-Use enforcement)
-    db.mark_otp_used(active_otp["id"])
+    # Mark all OTPs for this email as used (Single-Use enforcement)
+    db.mark_all_otps_used(clean_email)
 
     # Resolve or create user account
     if req.purpose == "signup":

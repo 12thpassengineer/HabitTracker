@@ -227,15 +227,6 @@ def update_user_last_login(user_id: str):
 def store_otp(email: str, otp_hash: str, purpose: str, expires_at_iso: str, ip_address: Optional[str] = None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    now_iso = datetime.datetime.utcnow().isoformat()
-    clean_email = email.strip().lower()
-
-    # Invalidate previous unexpired OTPs for this email to prevent multiple valid OTPs
-    cursor.execute(
-        "UPDATE email_otps SET used = 1 WHERE email = ? AND used = 0",
-        (clean_email,)
-    )
-
     cursor.execute(
         """
         INSERT INTO email_otps (email, otp_hash, purpose, attempts, expires_at, used, ip_address, created_at)
@@ -247,6 +238,10 @@ def store_otp(email: str, otp_hash: str, purpose: str, expires_at_iso: str, ip_a
     conn.close()
 
 def get_active_otp(email: str) -> Optional[Dict[str, Any]]:
+    otps = get_active_otps_for_email(email)
+    return otps[0] if otps else None
+
+def get_active_otps_for_email(email: str) -> List[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     clean_email = email.strip().lower()
@@ -257,13 +252,13 @@ def get_active_otp(email: str) -> Optional[Dict[str, Any]]:
         SELECT id, email, otp_hash, purpose, attempts, expires_at, used, created_at
         FROM email_otps
         WHERE email = ? AND used = 0 AND expires_at > ?
-        ORDER BY id DESC LIMIT 1
+        ORDER BY id DESC
         """,
         (clean_email, now_iso)
     )
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     conn.close()
-    return dict(row) if row else None
+    return [dict(r) for r in rows]
 
 def increment_otp_attempts(otp_id: int):
     conn = get_db_connection()
@@ -276,6 +271,14 @@ def mark_otp_used(otp_id: int):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE email_otps SET used = 1 WHERE id = ?", (otp_id,))
+    conn.commit()
+    conn.close()
+
+def mark_all_otps_used(email: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    clean_email = email.strip().lower()
+    cursor.execute("UPDATE email_otps SET used = 1 WHERE email = ?", (clean_email,))
     conn.commit()
     conn.close()
 
