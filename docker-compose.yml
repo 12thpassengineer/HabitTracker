@@ -11,8 +11,8 @@ services:
     env_file:
       - .env
     ports:
-      # LOCAL / HOMELAB: use "8000:8000"
-      # PRODUCTION (Cloudflare Tunnel): use "127.0.0.1:8000:8000" — never expose to 0.0.0.0
+      # Local/Homelab: BIND_HOST=0.0.0.0
+      # Production with Cloudflare Tunnel: BIND_HOST=127.0.0.1
       - "${BIND_HOST:-0.0.0.0}:${PORT:-8000}:8000"
     volumes:
       - adattracker_data:/app/data

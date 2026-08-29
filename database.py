@@ -92,23 +92,34 @@ def init_db():
     );
     """)
 
-    # ── Safe Schema Migrations (MUST run BEFORE indexes on new columns) ──────
-    # These ALTER TABLE statements are safe to re-run — they fail silently if
-    # the column already exists (i.e. fresh installs with the new schema).
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT COLLATE NOCASE;")
-    except sqlite3.OperationalError:
-        pass  # Column already exists — fresh install or already migrated
+    # ── Schema migrations (MUST run BEFORE indexes on new columns) ───────────
+    # We inspect the existing schema before adding each column so unrelated
+    # SQLite errors are not silently treated as "already migrated".
+    existing_columns = {
+        row["name"] for row in cursor.execute("PRAGMA table_info(users)").fetchall()
+    }
 
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
-    except sqlite3.OperationalError:
-        pass
+    def ensure_user_column(name: str, ddl: str) -> None:
+        if name not in existing_columns:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {ddl}")
+            existing_columns.add(name)
 
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 1;")
-    except sqlite3.OperationalError:
-        pass
+    ensure_user_column("email", "email TEXT COLLATE NOCASE")
+    ensure_user_column("role", "role TEXT NOT NULL DEFAULT 'user'")
+    ensure_user_column("is_verified", "is_verified INTEGER NOT NULL DEFAULT 1")
+
+    # Legacy pre-Email-OTP databases may contain users whose email is NULL.
+    # Preserve their data and make the migration visible; those accounts need
+    # an email address associated before passwordless login can be used.
+    legacy_null_email = cursor.execute(
+        "SELECT COUNT(*) AS count FROM users WHERE email IS NULL OR TRIM(email) = ''"
+    ).fetchone()["count"]
+    if legacy_null_email:
+        print(
+            f"⚠️ Migration notice: {legacy_null_email} legacy user(s) have no email address. "
+            "Their existing data is preserved, but they must be associated with an email "
+            "before passwordless Email OTP login can be used."
+        )
 
     # Remove the old phone column index if it exists from a prior version
     try:
@@ -425,6 +436,8 @@ def increment_rate_limit_atomic(key: str, window_seconds: int, max_requests: int
     now = datetime.datetime.utcnow()
     now_iso = now.isoformat()
     try:
+        # Serialize concurrent rate-limit checks so SELECT+UPDATE cannot lose increments.
+        cursor.execute("BEGIN IMMEDIATE")
         cursor.execute(
             "SELECT key, attempts, window_start, blocked_until FROM rate_limits WHERE key = ?",
             (key,)

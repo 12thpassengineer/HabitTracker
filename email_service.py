@@ -75,12 +75,12 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="ignore")
             print(f"❌ Resend API HTTP Error {e.code}: {err_body}")
-            print(f"🔑 [FALLBACK LOG] Verification OTP for {to_email} is: >>> {otp_code} <<<")
-            return False, f"Resend Error ({e.code}): {err_body}"
+            # Never log OTP values on production delivery failure.
+            return False, f"Resend Error ({e.code})"
         except Exception as e:
             print(f"❌ Resend API error: {e}")
-            print(f"🔑 [FALLBACK LOG] Verification OTP for {to_email} is: >>> {otp_code} <<<")
-            return False, f"Failed to send email via Resend: {str(e)}"
+            # Never log OTP values on production delivery failure.
+            return False, "Failed to send email via Resend."
 
     # 3. Standard SMTP Backend (Gmail, Mailgun, Amazon SES, Brevo, Custom SMTP)
     if EMAIL_BACKEND == "smtp":
@@ -121,9 +121,9 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
             print(f"❌ SMTP Dispatch Error: {e}")
             return False, f"SMTP error: {str(e)}"
 
-    # Fallback to console warning if misconfigured
-    print(f"⚠️ Warning: Unknown EMAIL_BACKEND '{EMAIL_BACKEND}'. OTP code for {to_email} is: {otp_code}")
-    return True, "Fallback console logged."
+    # Never log OTP values for an invalid production configuration.
+    print(f"⚠️ Warning: Unknown EMAIL_BACKEND '{EMAIL_BACKEND}'. Configure a valid email backend.")
+    return False, f"Unknown EMAIL_BACKEND: {EMAIL_BACKEND}"
 
 def generate_html_email(otp_code: str, username: str, purpose: str) -> str:
     """Generates a responsive OLED-styled HTML verification email."""

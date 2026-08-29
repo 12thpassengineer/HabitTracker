@@ -392,8 +392,8 @@ async def api_logout(
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
     if session_id:
         session = db.get_session(session_id)
-        # Validate CSRF on logout if we have a session (P1 #12)
-        if session and x_csrf_token:
+        # Validate CSRF whenever an active session exists.
+        if session:
             if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
                 raise HTTPException(status_code=403, detail="Invalid CSRF token.")
         db.delete_session(session_id)

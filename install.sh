@@ -158,11 +158,18 @@ DATA_DIR=${INSTALL_DIR}/data
 # Set BASE_URL and ALLOWED_ORIGINS to your actual public domain.
 # If using Cloudflare Tunnel: BASE_URL=https://habits.yourdomain.com
 # Do NOT leave as localhost for a public-facing server.
+# IMPORTANT: For public hosting behind Cloudflare, replace these with your public HTTPS domain.
 BASE_URL=http://localhost:${PORT}
 ALLOWED_ORIGINS=http://localhost:${PORT},http://127.0.0.1:${PORT}
 
+# ── Docker bind address ──────────────────────────────────────────────────────
+# Only relevant to docker-compose. Keep 0.0.0.0 for local/LAN use.
+# Set BIND_HOST=127.0.0.1 for Oracle + Cloudflare Tunnel production.
+BIND_HOST=0.0.0.0
+
 # ── Email Backend ─────────────────────────────────────────────────────────────
-# Options: console (prints to logs), resend (API key required), smtp
+# Local testing: console
+# Production: configure resend or smtp BEFORE public launch.
 EMAIL_BACKEND=console
 # RESEND_API_KEY=re_your_key_here
 # FROM_EMAIL=noreply@yourdomain.com
