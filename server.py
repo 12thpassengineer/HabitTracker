@@ -57,6 +57,8 @@ from config import (
 import database as db
 import security
 import email_service
+import payment_service
+
 
 # ═══════════════════════════════════════════════════════
 # LIFESPAN & APPLICATION STARTUP
@@ -167,6 +169,28 @@ async def get_current_session(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=401, detail="Session expired or invalid.")
 
     return session
+
+async def require_active_subscription(session: Dict[str, Any] = Depends(get_current_session)) -> Dict[str, Any]:
+    """
+    Validates that the authenticated user has an active subscription.
+    When BILLING_ENABLED is False (self-hosted / local), always permits access.
+    Allowed statuses: 'active', 'pending' (grace period during automated retries).
+    """
+    if not payment_service.is_billing_enabled():
+        return session
+
+    user_id = session["user_id"]
+    sub = db.get_subscription_by_user_id(user_id)
+    status = sub["status"] if sub else "inactive"
+
+    if status in ("active", "pending"):
+        return session
+
+    raise HTTPException(
+        status_code=402,
+        detail="Subscription required. Please subscribe or renew your plan to access habit data."
+    )
+
 
 # ═══════════════════════════════════════════════════════
 # SYSTEM & STATIC ENDPOINTS
@@ -364,6 +388,7 @@ async def api_verify_otp(req: VerifyOtpRequest, request: Request, response: Resp
             "role": user["role"]
         },
         "csrf_token": csrf_token,
+        "subscription": payment_service.get_billing_config(user["id"]),
         "data": user_data
     }
 
@@ -392,16 +417,18 @@ async def api_update_profile(
 
 @app.get("/api/auth/me")
 async def api_me(session: Dict[str, Any] = Depends(get_current_session)):
-    """Returns profile information and CSRF token for the authenticated session."""
+    """Returns profile information, CSRF token, and billing status for the authenticated session."""
+    user_id = session["user_id"]
     return {
         "user": {
-            "id": session["user_id"],
+            "id": user_id,
             "username": session["username"],
             "email": session["email"],
             "phone": session.get("phone"),
             "role": session["role"]
         },
-        "csrf_token": session["csrf_token"]
+        "csrf_token": session["csrf_token"],
+        "subscription": payment_service.get_billing_config(user_id)
     }
 
 @app.post("/api/auth/logout")
@@ -433,13 +460,102 @@ async def api_logout(
     return {"success": True, "message": "Logged out successfully."}
 
 # ═══════════════════════════════════════════════════════
-# USER DATA ENDPOINTS (Strict Isolation & CSRF Protected)
+# BILLING & SUBSCRIPTION ENDPOINTS (Razorpay UPI AutoPay)
+# ═══════════════════════════════════════════════════════
+@app.get("/api/subscription")
+async def api_get_subscription(session: Dict[str, Any] = Depends(get_current_session)):
+    """
+    Returns current subscription status and Razorpay metadata for the authenticated user.
+    Always accessible regardless of whether subscription is active or expired.
+    """
+    user_id = session["user_id"]
+    billing_data = payment_service.get_billing_config(user_id)
+    return {
+        "success": True,
+        "subscription": billing_data
+    }
+
+@app.post("/api/billing/create-subscription")
+async def api_create_subscription(
+    session: Dict[str, Any] = Depends(get_current_session),
+    x_csrf_token: Optional[str] = Header(None)
+):
+    """
+    Step 1: Initializes a recurring ₹21/month subscription on Razorpay for UPI AutoPay.
+    Returns checkout parameters for client-side Razorpay modal.
+    """
+    if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
+        raise HTTPException(status_code=403, detail="Invalid or missing CSRF token.")
+
+    user_dict = {
+        "id": session["user_id"],
+        "username": session["username"],
+        "email": session["email"],
+        "phone": session.get("phone")
+    }
+
+    success, checkout_data, msg = payment_service.create_razorpay_subscription(user_dict)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return {
+        "success": True,
+        "checkout": checkout_data,
+        "message": msg
+    }
+
+@app.post("/api/billing/cancel-subscription")
+async def api_cancel_subscription(
+    session: Dict[str, Any] = Depends(get_current_session),
+    x_csrf_token: Optional[str] = Header(None)
+):
+    """
+    Cancels the user's active recurring subscription on Razorpay and updates local state.
+    """
+    if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
+        raise HTTPException(status_code=403, detail="Invalid or missing CSRF token.")
+
+    success, msg = payment_service.cancel_razorpay_subscription(session["user_id"])
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return {
+        "success": True,
+        "message": msg
+    }
+
+@app.post("/api/billing/webhook")
+async def api_billing_webhook(request: Request):
+    """
+    Authoritative webhook ingress for Razorpay subscription lifecycle events.
+    Verifies HMAC-SHA256 signature against RAZORPAY_WEBHOOK_SECRET.
+    Idempotent: Duplicate webhook events are safely acknowledged without state corruption.
+    """
+    raw_body = await request.body()
+    signature_header = request.headers.get("x-razorpay-signature")
+
+    if not payment_service.verify_webhook_signature(raw_body, signature_header):
+        raise HTTPException(status_code=400, detail="Invalid Razorpay webhook signature.")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+
+    success, msg = payment_service.process_razorpay_webhook(payload)
+    return {
+        "status": "ok",
+        "message": msg
+    }
+
+# ═══════════════════════════════════════════════════════
+# USER DATA ENDPOINTS (Strict Isolation & Subscription Gated)
 # ═══════════════════════════════════════════════════════
 @app.get("/api/data")
-async def api_get_data(session: Dict[str, Any] = Depends(get_current_session)):
+async def api_get_data(session: Dict[str, Any] = Depends(require_active_subscription)):
     """
-    Retrieves the habits, tasks, and notes payload strictly for the authenticated user.
-    Never accepts or trusts a user_id from query parameters.
+    Retrieves habits, tasks, and notes payload strictly for the authenticated user.
+    Requires active subscription when hosted billing is enabled.
     """
     user_id = session["user_id"]
     data = db.get_user_data(user_id)
@@ -448,9 +564,11 @@ async def api_get_data(session: Dict[str, Any] = Depends(get_current_session)):
             "id": user_id,
             "username": session["username"],
             "email": session["email"],
+            "phone": session.get("phone"),
             "role": session["role"]
         },
         "csrf_token": session["csrf_token"],
+        "subscription": payment_service.get_billing_config(user_id),
         "data": data
     }
 
@@ -458,12 +576,12 @@ async def api_get_data(session: Dict[str, Any] = Depends(get_current_session)):
 async def api_save_data(
     payload: Dict[str, Any],
     request: Request,
-    session: Dict[str, Any] = Depends(get_current_session),
+    session: Dict[str, Any] = Depends(require_active_subscription),
     x_csrf_token: Optional[str] = Header(None)
 ):
     """
     Saves habits, tasks, and notes payload strictly under the authenticated user's ID.
-    Validates CSRF double-submit header. Ignores any user_id in the JSON body.
+    Validates CSRF double-submit header. Requires active subscription.
     """
     # 1. CSRF Protection Check
     if not security.verify_csrf_token(x_csrf_token, session["csrf_token"]):
@@ -481,3 +599,4 @@ if __name__ == "__main__":
     import uvicorn
     print(f"🚀 Launching AdatTracker Pro on http://{HOST}:{PORT}")
     uvicorn.run("server:app", host=HOST, port=PORT, reload=not IS_PRODUCTION)
+

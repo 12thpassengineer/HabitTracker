@@ -111,3 +111,13 @@ SMTP_TLS = os.environ.get("SMTP_TLS", "true").lower() == "true"
 FROM_EMAIL = os.environ.get("FROM_EMAIL", "noreply@adattracker.local")
 FROM_NAME = os.environ.get("FROM_NAME", "AdatTracker Pro")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+
+# ── Billing & Razorpay Subscriptions (₹21/mo UPI AutoPay) ──────────────────────
+BILLING_ENABLED = os.environ.get("BILLING_ENABLED", "false").lower().strip() == "true"
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "").strip()
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
+RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "").strip()
+RAZORPAY_PLAN_ID = os.environ.get("RAZORPAY_PLAN_ID", "").strip()
+HOSTED_PRICE = int(os.environ.get("HOSTED_PRICE", 21))
+HOSTED_CURRENCY = os.environ.get("HOSTED_CURRENCY", "INR").upper().strip()
+

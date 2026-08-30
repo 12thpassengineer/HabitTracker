@@ -92,6 +92,32 @@ def init_db():
     );
     """)
 
+    # 6. Subscriptions Table (₹21/mo Razorpay UPI AutoPay)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        razorpay_subscription_id TEXT UNIQUE,
+        plan TEXT NOT NULL DEFAULT 'hosted_monthly',
+        status TEXT NOT NULL DEFAULT 'inactive',
+        current_period_start TEXT,
+        current_period_end TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        cancelled_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    """)
+
+    # 7. Webhook Events Table (Idempotency Engine)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS webhook_events (
+        event_id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        processed_at TEXT NOT NULL
+    );
+    """)
+
     # ── Schema migrations (MUST run BEFORE indexes on new columns) ───────────
     # We inspect the existing schema before adding each column so unrelated
     # SQLite errors are not silently treated as "already migrated".
@@ -136,6 +162,9 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_otps_email_used ON email_otps(email, used, expires_at);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_rzp_id ON subscriptions(razorpay_subscription_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);")
 
     conn.commit()
     conn.close()
@@ -635,3 +664,148 @@ def create_default_user_data() -> Dict[str, Any]:
         },
         "bestStreak": 0
     }
+
+# ═══════════════════════════════════════════════════════
+# SUBSCRIPTION & BILLING REPOSITORY (Razorpay Subscriptions)
+# ═══════════════════════════════════════════════════════
+def get_subscription_by_user_id(user_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves current subscription record for a specific user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, user_id, razorpay_subscription_id, plan, status,
+               current_period_start, current_period_end, created_at, updated_at, cancelled_at
+        FROM subscriptions
+        WHERE user_id = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_subscription_by_razorpay_id(rzp_sub_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves subscription record by its Razorpay subscription ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, user_id, razorpay_subscription_id, plan, status,
+               current_period_start, current_period_end, created_at, updated_at, cancelled_at
+        FROM subscriptions
+        WHERE razorpay_subscription_id = ?
+        """,
+        (rzp_sub_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def upsert_subscription(
+    user_id: str,
+    razorpay_sub_id: str,
+    plan: str = "hosted_monthly",
+    status: str = "pending",
+    period_start: Optional[str] = None,
+    period_end: Optional[str] = None,
+    cancelled_at: Optional[str] = None
+) -> Dict[str, Any]:
+    """Inserts or updates the user's subscription record."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_iso = datetime.datetime.utcnow().isoformat()
+    sub_id = f"sub_{uuid.uuid4().hex[:12]}"
+
+    # Check if a subscription already exists for this user
+    existing = get_subscription_by_user_id(user_id)
+    if existing:
+        cursor.execute(
+            """
+            UPDATE subscriptions
+            SET razorpay_subscription_id = ?,
+                plan = ?,
+                status = ?,
+                current_period_start = COALESCE(?, current_period_start),
+                current_period_end = COALESCE(?, current_period_end),
+                cancelled_at = COALESCE(?, cancelled_at),
+                updated_at = ?
+            WHERE user_id = ?
+            """,
+            (razorpay_sub_id, plan, status, period_start, period_end, cancelled_at, now_iso, user_id)
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO subscriptions (
+                id, user_id, razorpay_subscription_id, plan, status,
+                current_period_start, current_period_end, created_at, updated_at, cancelled_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (sub_id, user_id, razorpay_sub_id, plan, status, period_start, period_end, now_iso, now_iso, cancelled_at)
+        )
+
+    conn.commit()
+    conn.close()
+    return get_subscription_by_user_id(user_id)
+
+def update_subscription_status(
+    razorpay_sub_id: str,
+    status: str,
+    period_start: Optional[str] = None,
+    period_end: Optional[str] = None,
+    cancelled_at: Optional[str] = None
+) -> bool:
+    """Updates status and billing cycle timestamps by Razorpay subscription ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_iso = datetime.datetime.utcnow().isoformat()
+    cursor.execute(
+        """
+        UPDATE subscriptions
+        SET status = ?,
+            current_period_start = COALESCE(?, current_period_start),
+            current_period_end = COALESCE(?, current_period_end),
+            cancelled_at = COALESCE(?, cancelled_at),
+            updated_at = ?
+        WHERE razorpay_subscription_id = ?
+        """,
+        (status, period_start, period_end, cancelled_at, now_iso, razorpay_sub_id)
+    )
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+def is_webhook_event_processed(event_id: str) -> bool:
+    """Checks if a webhook event ID has already been processed (Idempotency)."""
+    if not event_id:
+        return False
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT event_id FROM webhook_events WHERE event_id = ?", (event_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+def record_webhook_event(event_id: str, event_type: str):
+    """Records a processed webhook event to prevent duplicate execution."""
+    if not event_id:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_iso = datetime.datetime.utcnow().isoformat()
+    try:
+        cursor.execute(
+            "INSERT OR IGNORE INTO webhook_events (event_id, event_type, processed_at) VALUES (?, ?, ?)",
+            (event_id, event_type, now_iso)
+        )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+

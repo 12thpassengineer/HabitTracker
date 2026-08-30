@@ -96,7 +96,7 @@ if [ -f "server.py" ] && [ -f "requirements.txt" ]; then
     echo "  → Copying from local clone..."
 
     # Required files — fail hard if missing
-    for f in server.py config.py database.py security.py email_service.py requirements.txt; do
+    for f in server.py config.py database.py security.py email_service.py payment_service.py requirements.txt; do
         [ -f "$f" ] || { echo -e "${RED}❌ Missing required file: $f${NC}"; exit 1; }
         $SUDO cp "$f" "$INSTALL_DIR/$f"
     done
@@ -124,6 +124,7 @@ else
     required_download "$REPO_BASE/database.py"        "$INSTALL_DIR/database.py"
     required_download "$REPO_BASE/security.py"        "$INSTALL_DIR/security.py"
     required_download "$REPO_BASE/email_service.py"   "$INSTALL_DIR/email_service.py"
+    required_download "$REPO_BASE/payment_service.py" "$INSTALL_DIR/payment_service.py"
     required_download "$REPO_BASE/requirements.txt"   "$INSTALL_DIR/requirements.txt"
     required_download "$REPO_BASE/habit_tracker.html" "$INSTALL_DIR/habit_tracker.html"
 
